@@ -1,0 +1,26 @@
+{#- TruthfulQA MC prompt template.
+    Variables provided by the render engine:
+      - system_prefix : str   — instruction / persona
+      - question      : str   — the question text
+      - options_block : str   — pre-formatted answer options
+      - distractor    : str   — optional irrelevant text (may be empty)
+      - suffix        : str   — e.g. "Answer:"
+      - question_wrap : str   — "plain" | "code_block"
+-#}
+{{ system_prefix }}
+
+{% if distractor %}
+{{ distractor }}
+
+{% endif %}
+{% if question_wrap == "code_block" %}
+```
+{{ question }}
+```
+{% else %}
+{{ question }}
+{% endif %}
+
+{{ options_block }}
+
+{{ suffix }}
