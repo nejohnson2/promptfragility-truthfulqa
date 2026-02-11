@@ -2,12 +2,15 @@
 # run_matrix.sh — Full evaluation pipeline.
 #
 # Usage:
-#   bash scripts/run_matrix.sh [--split dev|final] [--quantize]
+#   bash scripts/run_matrix.sh [dev|final] [--quantize]
 #
 # This script:
 #   1. Fetches/caches the TruthfulQA dataset
-#   2. Runs evaluation for each model
-#   3. Aggregates results and generates plots
+#   2. Runs evaluation for each model (continues on failure)
+#   3. Merges predictions across runs
+#   4. Computes metrics, bootstrap CIs, and generates plots
+#
+# For SLURM clusters, use scripts/slurm_pipeline.sbatch instead.
 
 set -euo pipefail
 
@@ -29,6 +32,9 @@ for arg in "$@"; do
         --quantize) QUANTIZE_FLAG="--quantize_4bit" ;;
     esac
 done
+
+# Create logs directory
+mkdir -p logs
 
 # Models to evaluate (must match protocol.md)
 MODELS=(
@@ -56,44 +62,73 @@ echo "============================================"
 echo "Split:     $SPLIT"
 echo "Run tag:   $RUN_TAG"
 echo "Models:    ${#MODELS[@]}"
+echo "Host:      $(hostname)"
+echo "Date:      $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+echo "Python:    $(python --version 2>&1)"
 echo ""
 
-# ── Step 1: Fetch data ───────────────────────────────────────────────────
-if [ ! -f "$CACHE_FILE" ]; then
-    echo ">> Fetching TruthfulQA dataset …"
-    python data/fetch_truthfulqa.py --out "$CACHE_FILE" --seed 42
+# ── GPU diagnostics ──────────────────────────────────────────────────────
+if command -v nvidia-smi &>/dev/null; then
+    echo "── GPU Info ──"
+    nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
     echo ""
-else
-    echo ">> Dataset cache exists: $CACHE_FILE"
 fi
 
-# ── Step 2: Run evaluation for each model ────────────────────────────────
+# ── Step 1: Fetch data ───────────────────────────────────────────────────
+echo "[Step 1/6] Fetching TruthfulQA dataset"
+if [ ! -f "$CACHE_FILE" ]; then
+    python data/fetch_truthfulqa.py --out "$CACHE_FILE" --seed 42
+else
+    echo "  Dataset cache exists: $CACHE_FILE ($(wc -l < "$CACHE_FILE") records)"
+fi
 echo ""
-echo ">> Running evaluation matrix …"
+
+# ── Step 2: Run evaluation for each model ────────────────────────────────
+echo "[Step 2/6] Running evaluation matrix"
+
+FAILED_MODELS=()
+MODEL_IDX=0
+TOTAL_MODELS=${#MODELS[@]}
+
 for MODEL_ID in "${MODELS[@]}"; do
+    MODEL_IDX=$((MODEL_IDX + 1))
     MODEL_SHORT=$(echo "$MODEL_ID" | sed 's|.*/||')
     echo ""
-    echo "  ──── Model: $MODEL_SHORT ────"
-    python -m src.eval.run_eval \
+    echo "  [$MODEL_IDX/$TOTAL_MODELS] $MODEL_SHORT"
+    echo "  Started: $(date -u '+%H:%M:%S UTC')"
+
+    if python -m src.eval.run_eval \
         --model_id "$MODEL_ID" \
         --dataset "$CACHE_FILE" \
         --conditions "$CONDITIONS_FILE" \
         --split "$SPLIT" \
         --output_dir "$OUTPUT_BASE" \
-        $QUANTIZE_FLAG
+        $QUANTIZE_FLAG 2>&1; then
+        echo "  Completed: $(date -u '+%H:%M:%S UTC')"
+    else
+        echo "  FAILED: $MODEL_ID (exit code $?)"
+        FAILED_MODELS+=("$MODEL_ID")
+        echo "  Continuing with next model..."
+    fi
 done
 
-# ── Step 3: Find the most recent run directory ──────────────────────────
-# All model runs are saved in separate timestamped dirs. We need to
-# merge them or analyze the latest one. For simplicity, we merge all
-# predictions.jsonl from the latest batch into a combined file.
+# Report failures
+if [ ${#FAILED_MODELS[@]} -gt 0 ]; then
+    echo ""
+    echo "WARNING: ${#FAILED_MODELS[@]} model(s) failed:"
+    for m in "${FAILED_MODELS[@]}"; do
+        echo "  - $m"
+    done
+    echo ""
+fi
+
+# ── Step 3: Merge predictions ────────────────────────────────────────────
 echo ""
-echo ">> Merging predictions from latest runs …"
+echo "[Step 3/6] Merging predictions"
 
 MERGED_DIR="$OUTPUT_BASE/merged_${RUN_TAG}"
 mkdir -p "$MERGED_DIR/figures"
 
-# Concatenate all predictions from runs created after our timestamp
 > "$MERGED_DIR/predictions.jsonl"
 for RUN_DIR in "$OUTPUT_BASE"/20*; do
     [ -d "$RUN_DIR" ] || continue
@@ -101,25 +136,31 @@ for RUN_DIR in "$OUTPUT_BASE"/20*; do
     cat "$RUN_DIR/predictions.jsonl" >> "$MERGED_DIR/predictions.jsonl"
 done
 
-echo "  Merged predictions: $(wc -l < "$MERGED_DIR/predictions.jsonl") records"
+PRED_COUNT=$(wc -l < "$MERGED_DIR/predictions.jsonl")
+echo "  Merged → $PRED_COUNT prediction records"
+
+if [ "$PRED_COUNT" -eq 0 ]; then
+    echo "ERROR: No predictions found. Exiting."
+    exit 1
+fi
 
 # ── Step 4: Aggregate and compute metrics ────────────────────────────────
 echo ""
-echo ">> Computing metrics …"
+echo "[Step 4/6] Computing metrics"
 python -m src.analysis.compute_metrics \
     --predictions "$MERGED_DIR/predictions.jsonl" \
     --output_dir "$MERGED_DIR"
 
 # ── Step 5: Bootstrap statistics ─────────────────────────────────────────
 echo ""
-echo ">> Computing bootstrap confidence intervals …"
+echo "[Step 5/6] Computing bootstrap confidence intervals"
 python -m src.analysis.stats \
     --predictions "$MERGED_DIR/predictions.jsonl" \
     --output_dir "$MERGED_DIR"
 
 # ── Step 6: Generate plots ───────────────────────────────────────────────
 echo ""
-echo ">> Generating plots …"
+echo "[Step 6/6] Generating plots"
 python -m src.analysis.plots \
     --aggregated "$MERGED_DIR/aggregated.csv" \
     --ranking_metrics "$MERGED_DIR/ranking_metrics.json" \
@@ -132,7 +173,13 @@ echo "Done! Results in: $MERGED_DIR"
 echo "============================================"
 echo ""
 echo "Contents:"
-ls -la "$MERGED_DIR/"
+ls -lh "$MERGED_DIR/"
 echo ""
 echo "Figures:"
-ls -la "$MERGED_DIR/figures/" 2>/dev/null || echo "  (none)"
+ls -lh "$MERGED_DIR/figures/" 2>/dev/null || echo "  (none)"
+
+if [ ${#FAILED_MODELS[@]} -gt 0 ]; then
+    echo ""
+    echo "WARNING: ${#FAILED_MODELS[@]} model(s) failed. See output above."
+    exit 1
+fi

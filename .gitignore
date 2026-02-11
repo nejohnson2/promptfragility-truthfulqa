@@ -46,6 +46,9 @@ results/runs/*/figures/*.png
 # HuggingFace cache
 .cache/
 
+# SLURM logs
+logs/
+
 # Misc
 *.log
 *.tmp
