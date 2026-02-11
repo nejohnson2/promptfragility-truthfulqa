@@ -5,10 +5,10 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --gres=gpu:a100:1
+#SBATCH --mem=128G
+#SBATCH --gres=gpu:h200:1
 #SBATCH --time=24:00:00
-#SBATCH --partition=gpu
+#SBATCH --partition=h200x4
 #
 # Prompt Fragility — Full TruthfulQA MC Evaluation Pipeline (SLURM)
 #
@@ -18,8 +18,8 @@
 #   sbatch scripts/slurm_pipeline.sbatch final         # final split
 #   sbatch scripts/slurm_pipeline.sbatch dev --quantize # dev split + 4-bit quant
 #
-# For 70B+ models, request more GPU memory:
-#   sbatch --gres=gpu:a100:2 --mem=128G scripts/slurm_pipeline.sbatch final
+# For 70B+ models, request more GPUs:
+#   sbatch --gres=gpu:h200:2 --mem=256G scripts/slurm_pipeline.sbatch final
 #
 # Logs are written to logs/slurm_<JOBID>.out and logs/slurm_<JOBID>.err
 
@@ -75,10 +75,10 @@ import pandas; print(f'pandas:        {pandas.__version__}')
 echo ""
 
 # ── Activate conda/venv if available ──────────────────────────────────────
-# Uncomment and edit the line that matches your cluster setup:
-# source /path/to/conda/etc/profile.d/conda.sh && conda activate promptfragility
-# source /path/to/venv/bin/activate
-# module load cuda/12.1 python/3.11
+# Activate environment — edit to match your setup:
+module load cuda12.8/toolkit/12.8.0
+# source ~/envs/promptfragility/bin/activate
+conda activate promptfragility
 
 # ── Parse arguments ───────────────────────────────────────────────────────
 SPLIT="${1:-dev}"
