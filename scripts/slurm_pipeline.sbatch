@@ -8,7 +8,7 @@
 #SBATCH --mem=128G
 #SBATCH --gres=gpu:h200:1
 #SBATCH --time=24:00:00
-#SBATCH --partition=h200x4
+#SBATCH --partition=h200x4-long
 #
 # Prompt Fragility — Full TruthfulQA MC Evaluation Pipeline (SLURM)
 #
