@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=pf-truthfulqa
-#SBATCH --output=logs/slurm_%j.out
-#SBATCH --error=logs/slurm_%j.err
+#SBATCH --output=%x_%j.out
+#SBATCH --error=%x_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
@@ -21,7 +21,8 @@
 # For 70B+ models, request more GPUs:
 #   sbatch --gres=gpu:h200:2 --mem=256G scripts/slurm_pipeline.sbatch final
 #
-# Logs are written to logs/slurm_<JOBID>.out and logs/slurm_<JOBID>.err
+# Logs are initially written to <submit_dir>/pf-truthfulqa_<JOBID>.out/.err
+# and moved to logs/ at the end of the job.
 
 set -euo pipefail
 
@@ -30,8 +31,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# Create logs directory
+# Create logs directory and move SLURM output files there
 mkdir -p logs
+# SLURM writes output files to the submission directory first,
+# then we move them into logs/ at the end of the job (see bottom of script)
 
 echo "================================================================"
 echo "Prompt Fragility — TruthfulQA MC Evaluation (SLURM)"
@@ -202,7 +205,7 @@ if [ ${#FAILED_MODELS[@]} -gt 0 ]; then
         echo "  - $m"
     done
     echo ""
-    echo "Check the SLURM error log for details: logs/slurm_${SLURM_JOB_ID:-local}.err"
+    echo "Check the SLURM error log for details: pf-truthfulqa_${SLURM_JOB_ID:-local}.err"
     echo ""
 fi
 
@@ -278,7 +281,17 @@ echo ""
 
 if [ ${#FAILED_MODELS[@]} -gt 0 ]; then
     echo "WARNING: ${#FAILED_MODELS[@]} model(s) failed. Review errors above."
-    exit 1
+    EXIT_CODE=1
 else
     echo "All ${TOTAL_MODELS} models completed successfully."
+    EXIT_CODE=0
 fi
+
+# ── Move SLURM log files into logs/ directory ────────────────────────────
+# SLURM writes output files to the submission directory; move them for cleanliness
+SLURM_OUT="${SLURM_SUBMIT_DIR:-$PROJECT_ROOT}/pf-truthfulqa_${SLURM_JOB_ID:-local}.out"
+SLURM_ERR="${SLURM_SUBMIT_DIR:-$PROJECT_ROOT}/pf-truthfulqa_${SLURM_JOB_ID:-local}.err"
+if [ -f "$SLURM_OUT" ]; then mv "$SLURM_OUT" "$PROJECT_ROOT/logs/"; fi
+if [ -f "$SLURM_ERR" ]; then mv "$SLURM_ERR" "$PROJECT_ROOT/logs/"; fi
+
+exit $EXIT_CODE
