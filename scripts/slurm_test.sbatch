@@ -1,106 +1,98 @@
 #!/bin/bash
 #SBATCH --job-name=pf-test
-#SBATCH --output=pf-test_%j.out
-#SBATCH --error=pf-test_%j.err
+#SBATCH --output=%x_%j.out
+#SBATCH --error=%x_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=8G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=128G
 #SBATCH --gres=gpu:h200:1
 #SBATCH --time=00:10:00
 #SBATCH --partition=debug-h200x4
 #
-# Quick test script — validates environment, conda, GPU, and Python packages.
-# Does NOT run any model inference.
+# Environment test script — mirrors slurm_pipeline.sbatch setup exactly,
+# but stops before running any model inference.
 #
 # Usage:
 #   sbatch scripts/slurm_test.sbatch
 
-echo "=== Basic Info ==="
-echo "Job ID:    ${SLURM_JOB_ID:-local}"
-echo "Node:      $(hostname)"
-echo "Date:      $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-echo "User:      $USER"
-echo "Shell:     $SHELL"
-echo "PWD:       $(pwd)"
+set -euo pipefail
+
+# ── Environment setup ─────────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+# Create logs directory and move SLURM output files there
+mkdir -p logs
+# SLURM writes output files to the submission directory first,
+# then we move them into logs/ at the end of the job (see bottom of script)
+
+# ── Activate environment (MUST come before any python commands) ───────────
+module load cuda12.8/toolkit/12.8.0
+# Initialize conda for non-interactive shell, then activate
+eval "$(conda shell.bash hook)"
+conda activate promptfragility
+
+echo "================================================================"
+echo "Prompt Fragility — Environment Test"
+echo "================================================================"
+echo "Job ID:        ${SLURM_JOB_ID:-local}"
+echo "Node:          $(hostname)"
+echo "Date:          $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+echo "Working dir:   $(pwd)"
+echo "Python:        $(which python)"
+echo "Python ver:    $(python --version 2>&1)"
+echo "Conda env:     ${CONDA_DEFAULT_ENV:-none}"
 echo ""
 
-echo "=== Step 1: Module load ==="
-module load cuda12.8/toolkit/12.8.0 && echo "OK: cuda module loaded" || echo "FAIL: cuda module"
-echo ""
-
-echo "=== Step 2: Conda init ==="
-eval "$(conda shell.bash hook)" && echo "OK: conda hook" || echo "FAIL: conda hook"
-echo ""
-
-echo "=== Step 3: Conda activate ==="
-conda activate promptfragility && echo "OK: conda activate" || echo "FAIL: conda activate"
-echo "Conda env: ${CONDA_DEFAULT_ENV:-NOT SET}"
-echo "Python:    $(which python 2>&1)"
-echo ""
-
-echo "=== Step 4: Python version ==="
-python --version 2>&1 || echo "FAIL: python not found"
-echo ""
-
-echo "=== Step 5: GPU ==="
+# ── GPU diagnostics ───────────────────────────────────────────────────────
+echo "── GPU Info ──"
 if command -v nvidia-smi &>/dev/null; then
     nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
-    echo "OK: nvidia-smi works"
+    echo ""
+    nvidia-smi
 else
-    echo "FAIL: nvidia-smi not found"
+    echo "nvidia-smi not found"
 fi
 echo ""
 
-echo "=== Step 6: Python packages ==="
-python -c "
-packages = [
-    'torch', 'transformers', 'accelerate', 'datasets',
-    'numpy', 'pandas', 'scipy', 'matplotlib', 'jinja2',
-    'yaml', 'tqdm',
-]
-for pkg in packages:
-    try:
-        mod = __import__(pkg)
-        ver = getattr(mod, '__version__', 'ok')
-        print(f'  OK: {pkg} ({ver})')
-    except ImportError as e:
-        print(f'  FAIL: {pkg} ({e})')
-" || echo "FAIL: python -c crashed"
-echo ""
-
-echo "=== Step 7: CUDA in PyTorch ==="
+# ── Python environment diagnostics ────────────────────────────────────────
+echo "── Python Packages ──"
 python -c "
 import torch
-print(f'  torch.cuda.is_available(): {torch.cuda.is_available()}')
+print(f'torch:         {torch.__version__}')
+print(f'CUDA avail:    {torch.cuda.is_available()}')
 if torch.cuda.is_available():
-    print(f'  CUDA version: {torch.version.cuda}')
-    print(f'  GPU count: {torch.cuda.device_count()}')
+    print(f'CUDA version:  {torch.version.cuda}')
+    print(f'GPU count:     {torch.cuda.device_count()}')
     for i in range(torch.cuda.device_count()):
-        props = torch.cuda.get_device_properties(i)
-        print(f'  GPU {i}: {props.name} ({props.total_memory / 1e9:.1f} GB)')
-else:
-    print('  WARNING: CUDA not available to PyTorch')
-" || echo "FAIL: torch cuda check crashed"
+        print(f'  GPU {i}: {torch.cuda.get_device_name(i)} ({torch.cuda.get_device_properties(i).total_memory / 1e9:.1f} GB)')
+import transformers; print(f'transformers:  {transformers.__version__}')
+import accelerate; print(f'accelerate:    {accelerate.__version__}')
+import datasets; print(f'datasets:      {datasets.__version__}')
+import numpy; print(f'numpy:         {numpy.__version__}')
+import pandas; print(f'pandas:        {pandas.__version__}')
+"
 echo ""
 
-echo "=== Step 8: HuggingFace auth ==="
+# ── HuggingFace auth ──────────────────────────────────────────────────────
+echo "── HuggingFace Auth ──"
 python -c "
 from huggingface_hub import HfApi
 api = HfApi()
 try:
     info = api.whoami()
-    print(f'  OK: logged in as {info[\"name\"]}')
+    print(f'Logged in as: {info[\"name\"]}')
 except Exception as e:
-    print(f'  FAIL: not authenticated ({e})')
-" || echo "FAIL: huggingface check crashed"
+    print(f'NOT authenticated: {e}')
+"
 echo ""
 
-echo "=== Step 9: Project files ==="
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# ── Project files ─────────────────────────────────────────────────────────
+echo "── Project Files ──"
 for f in "data/truthfulqa_cache.jsonl" "prompts/conditions.yaml" "prompts/templates/truthfulqa_mc.jinja" "src/config.py" "src/eval/run_eval.py"; do
-    if [ -f "$PROJECT_ROOT/$f" ]; then
+    if [ -f "$f" ]; then
         echo "  OK: $f"
     else
         echo "  MISSING: $f"
@@ -108,4 +100,33 @@ for f in "data/truthfulqa_cache.jsonl" "prompts/conditions.yaml" "prompts/templa
 done
 echo ""
 
-echo "=== All checks complete ==="
+# ── HF cache location ────────────────────────────────────────────────────
+echo "── HuggingFace Cache ──"
+echo "HF_HOME: ${HF_HOME:-not set (default: ~/.cache/huggingface)}"
+echo ""
+
+# ── Parse arguments (same as pipeline) ───────────────────────────────────
+SPLIT="${1:-dev}"
+echo "── Config ──"
+echo "Split:         $SPLIT"
+
+CACHE_FILE="data/truthfulqa_cache.jsonl"
+CONDITIONS_FILE="prompts/conditions.yaml"
+OUTPUT_BASE="results/runs"
+
+if [ -f "$CACHE_FILE" ]; then
+    echo "Dataset:       $CACHE_FILE ($(wc -l < "$CACHE_FILE") records)"
+else
+    echo "Dataset:       $CACHE_FILE (NOT FOUND — run: python data/fetch_truthfulqa.py --out $CACHE_FILE --seed 42)"
+fi
+echo ""
+
+echo "================================================================"
+echo "All checks passed. Environment is ready for slurm_pipeline.sbatch"
+echo "================================================================"
+
+# ── Move SLURM log files into logs/ directory ────────────────────────────
+SLURM_OUT="${SLURM_SUBMIT_DIR:-$PROJECT_ROOT}/pf-test_${SLURM_JOB_ID:-local}.out"
+SLURM_ERR="${SLURM_SUBMIT_DIR:-$PROJECT_ROOT}/pf-test_${SLURM_JOB_ID:-local}.err"
+if [ -f "$SLURM_OUT" ]; then mv "$SLURM_OUT" "$PROJECT_ROOT/logs/"; fi
+if [ -f "$SLURM_ERR" ]; then mv "$SLURM_ERR" "$PROJECT_ROOT/logs/"; fi
