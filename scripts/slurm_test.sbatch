@@ -22,7 +22,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
-
+echo "Project root: $PROJECT_ROOT"
 # Create logs directory and move SLURM output files there
 mkdir -p logs
 # SLURM writes output files to the submission directory first,
