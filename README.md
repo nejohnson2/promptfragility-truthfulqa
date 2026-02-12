@@ -44,20 +44,35 @@ bash scripts/run_matrix.sh final    # final split (for reported results)
 
 ## Running on a SLURM Cluster
 
+### Available Cluster Resources
+
+| Partition | GPUs | GPUs/Node | Time Limit | Notes |
+|---|---|---|---|---|
+| `debug-b40x4` | NVIDIA RTX PRO 6000 Blackwell | 4 | 1 hour | Quick tests |
+| `b40x4` | NVIDIA RTX PRO 6000 Blackwell | 4 | 8 hours | Standard runs |
+| `b40x4-long` | NVIDIA RTX PRO 6000 Blackwell | 4 | 48 hours | Long runs |
+| `debug-h200x4` | H200 | 4 | 1 hour | Quick tests |
+| `h200x4` | H200 | 4 | 8 hours | Standard runs |
+| `h200x4-long` | H200 | 4 | 48 hours | Long runs (default) |
+| `h200x8` | H200 | 8 | 8 hours | Multi-GPU |
+| `h200x8-long` | H200 | 8 | 48 hours | Multi-GPU long |
+
+The pipeline defaults to `h200x4-long` with 1x H200 (80GB HBM3e), which can handle all models up to 72B in fp16.
+
 ### Prerequisites
 
-1. **Python environment**: Set up a conda env or venv on the cluster with all dependencies:
+1. **Python environment**: Set up a conda env on the cluster:
    ```bash
-   module load python/3.11 cuda/12.1  # adjust for your cluster
-   python -m venv ~/envs/promptfragility
-   source ~/envs/promptfragility/bin/activate
+   module load cuda12.8/toolkit/12.8.0
+   conda create -n promptfragility python=3.11 -y
+   conda activate promptfragility
    pip install -r requirements.txt
    ```
 
 2. **HuggingFace authentication** (required for Llama 3.1 models):
    ```bash
    pip install huggingface_hub
-   huggingface-cli login
+   python -c "from huggingface_hub import login; login()"
    ```
    Then accept the Llama 3.1 license at:
    - https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
@@ -66,7 +81,7 @@ bash scripts/run_matrix.sh final    # final split (for reported results)
 ### Submitting the Job
 
 ```bash
-# Basic submission (dev split, 1x A100, 24h)
+# Basic submission (dev split, 1x H200, 24h on h200x4-long)
 sbatch scripts/slurm_pipeline.sbatch
 
 # Dev split explicitly
@@ -78,27 +93,28 @@ sbatch scripts/slurm_pipeline.sbatch final
 # With 4-bit quantization
 sbatch scripts/slurm_pipeline.sbatch dev --quantize
 
-# For 70B+ models, request more GPU memory
-sbatch --gres=gpu:a100:2 --mem=128G scripts/slurm_pipeline.sbatch final
+# For 70B+ models, request more GPUs if needed
+sbatch --gres=gpu:h200:2 --mem=256G scripts/slurm_pipeline.sbatch final
+
+# Quick debug run (1h limit)
+sbatch --partition=debug-h200x4 --time=01:00:00 scripts/slurm_pipeline.sbatch dev
 ```
 
 ### Customizing the SLURM Script
 
-Edit `scripts/slurm_pipeline.sbatch` to match your cluster. Common changes:
+Edit `scripts/slurm_pipeline.sbatch` to change defaults:
 
 | Setting | Default | What to change |
 |---|---|---|
-| `--partition` | `gpu` | Your cluster's GPU partition name |
-| `--gres` | `gpu:a100:1` | GPU type and count (e.g., `gpu:v100:1`) |
-| `--mem` | `64G` | Increase for 70B models |
-| `--time` | `24:00:00` | Increase for full split with all models |
-| `--account` | (none) | Add `#SBATCH --account=your_account` if required |
+| `--partition` | `h200x4-long` | Use `debug-h200x4` for quick tests, `h200x8` for multi-GPU |
+| `--gres` | `gpu:h200:1` | `gpu:h200:2` for 70B+ models if OOM |
+| `--mem` | `128G` | `256G` if using multiple GPUs |
+| `--time` | `24:00:00` | Max is 48h on `-long` partitions, 8h on standard |
 
-**Environment activation**: Uncomment and edit one of these lines in the script:
+**Environment activation** (already configured in the script):
 ```bash
-# source /path/to/conda/etc/profile.d/conda.sh && conda activate promptfragility
-# source /path/to/venv/bin/activate
-# module load cuda/12.1 python/3.11
+module load cuda12.8/toolkit/12.8.0
+conda activate promptfragility
 ```
 
 ### Monitoring Jobs
