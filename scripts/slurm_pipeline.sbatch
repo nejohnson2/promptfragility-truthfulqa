@@ -36,6 +36,12 @@ mkdir -p logs
 # SLURM writes output files to the submission directory first,
 # then we move them into logs/ at the end of the job (see bottom of script)
 
+# ── Activate environment (MUST come before any python commands) ───────────
+module load cuda12.8/toolkit/12.8.0
+# Initialize conda for non-interactive shell, then activate
+eval "$(conda shell.bash hook)"
+conda activate promptfragility
+
 echo "================================================================"
 echo "Prompt Fragility — TruthfulQA MC Evaluation (SLURM)"
 echo "================================================================"
@@ -45,6 +51,7 @@ echo "Date:          $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 echo "Working dir:   $(pwd)"
 echo "Python:        $(which python)"
 echo "Python ver:    $(python --version 2>&1)"
+echo "Conda env:     ${CONDA_DEFAULT_ENV:-none}"
 echo ""
 
 # ── GPU diagnostics ───────────────────────────────────────────────────────
@@ -68,7 +75,7 @@ if torch.cuda.is_available():
     print(f'CUDA version:  {torch.version.cuda}')
     print(f'GPU count:     {torch.cuda.device_count()}')
     for i in range(torch.cuda.device_count()):
-        print(f'  GPU {i}: {torch.cuda.get_device_name(i)} ({torch.cuda.get_device_properties(i).total_mem / 1e9:.1f} GB)')
+        print(f'  GPU {i}: {torch.cuda.get_device_name(i)} ({torch.cuda.get_device_properties(i).total_memory / 1e9:.1f} GB)')
 import transformers; print(f'transformers:  {transformers.__version__}')
 import accelerate; print(f'accelerate:    {accelerate.__version__}')
 import datasets; print(f'datasets:      {datasets.__version__}')
@@ -76,12 +83,6 @@ import numpy; print(f'numpy:         {numpy.__version__}')
 import pandas; print(f'pandas:        {pandas.__version__}')
 "
 echo ""
-
-# ── Activate conda/venv if available ──────────────────────────────────────
-# Activate environment — edit to match your setup:
-module load cuda12.8/toolkit/12.8.0
-# source ~/envs/promptfragility/bin/activate
-conda activate promptfragility
 
 # ── Parse arguments ───────────────────────────────────────────────────────
 SPLIT="${1:-dev}"
