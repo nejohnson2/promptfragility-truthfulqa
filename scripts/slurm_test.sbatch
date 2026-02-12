@@ -19,8 +19,7 @@
 set -euo pipefail
 
 # ── Environment setup ─────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$PROJECT_ROOT"
 echo "Project root: $PROJECT_ROOT"
 # Create logs directory and move SLURM output files there
