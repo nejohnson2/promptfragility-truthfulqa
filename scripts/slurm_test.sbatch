@@ -75,6 +75,16 @@ import pandas; print(f'pandas:        {pandas.__version__}')
 "
 echo ""
 
+# ── HuggingFace token ────────────────────────────────────────────────────
+# Load the token from the default home directory location (same as pipeline)
+HF_TOKEN_FILE="${HOME}/.cache/huggingface/token"
+if [ -z "${HF_TOKEN:-}" ] && [ -f "$HF_TOKEN_FILE" ]; then
+    export HF_TOKEN="$(cat "$HF_TOKEN_FILE")"
+    echo "HF_TOKEN loaded from $HF_TOKEN_FILE"
+else
+    echo "WARNING: No HF token found at $HF_TOKEN_FILE"
+fi
+
 # ── HuggingFace auth ──────────────────────────────────────────────────────
 echo "── HuggingFace Auth ──"
 python -c "
@@ -99,9 +109,24 @@ for f in "data/truthfulqa_cache.jsonl" "prompts/conditions.yaml" "prompts/templa
 done
 echo ""
 
-# ── HF cache location ────────────────────────────────────────────────────
+# ── HF cache — explicit scratch path (must match pipeline + download) ────
+export HF_HOME="/lustre/nvwulf/scratch/${USER}/hf_cache"
+mkdir -p "$HF_HOME"
 echo "── HuggingFace Cache ──"
-echo "HF_HOME: ${HF_HOME:-not set (default: ~/.cache/huggingface)}"
+echo "HF_HOME:       $HF_HOME"
+if touch "$HF_HOME/.write_test" 2>/dev/null; then
+    rm -f "$HF_HOME/.write_test"
+    echo "Scratch:       writable"
+else
+    echo "ERROR: Cannot write to $HF_HOME"
+fi
+# Show what's cached
+CACHED_MODELS=$(ls -d "$HF_HOME/hub/models--"* 2>/dev/null | wc -l)
+echo "Cached models: $CACHED_MODELS"
+if [ "$CACHED_MODELS" -gt 0 ]; then
+    ls -d "$HF_HOME/hub/models--"* 2>/dev/null | sed 's|.*/models--||; s|--|/|g; s/^/  /'
+fi
+echo "Cache size:    $(du -sh "$HF_HOME" 2>/dev/null | cut -f1)"
 echo ""
 
 # ── Parse arguments (same as pipeline) ───────────────────────────────────

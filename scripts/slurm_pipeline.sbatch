@@ -103,16 +103,33 @@ echo "Run tag:       $RUN_TAG"
 echo "Quantize:      ${QUANTIZE_FLAG:-none}"
 echo ""
 
-# ── HuggingFace cache ─────────────────────────────────────────────────────
-# Use node-local scratch if available to avoid NFS bottlenecks
-if [ -n "${SCRATCH:-}" ] && [ -d "$SCRATCH" ]; then
-    export HF_HOME="$SCRATCH/.cache/huggingface"
-    echo "HF_HOME set to $HF_HOME (scratch)"
-elif [ -n "${TMPDIR:-}" ] && [ -d "$TMPDIR" ]; then
-    export HF_HOME="$TMPDIR/.cache/huggingface"
-    echo "HF_HOME set to $HF_HOME (tmpdir)"
+# ── HuggingFace token ────────────────────────────────────────────────────
+# Load the token from the default home directory location BEFORE HF_HOME
+# is potentially redirected to scratch. This ensures gated models (e.g.
+# Llama 3.1) can authenticate even when HF_HOME points elsewhere.
+HF_TOKEN_FILE="${HOME}/.cache/huggingface/token"
+if [ -z "${HF_TOKEN:-}" ] && [ -f "$HF_TOKEN_FILE" ]; then
+    export HF_TOKEN="$(cat "$HF_TOKEN_FILE")"
+    echo "HF_TOKEN loaded from $HF_TOKEN_FILE"
+else
+    echo "WARNING: No HF token found at $HF_TOKEN_FILE — gated models (Llama 3.1) will fail"
 fi
-mkdir -p "${HF_HOME:-$HOME/.cache/huggingface}"
+
+# ── HuggingFace cache — explicit scratch path ────────────────────────────
+# Must match the path used by slurm_download.sbatch so pre-downloaded
+# models are found. Using scratch avoids NFS bottlenecks during inference.
+export HF_HOME="/lustre/nvwulf/scratch/${USER}/hf_cache"
+mkdir -p "$HF_HOME"
+echo "HF_HOME:       $HF_HOME"
+
+# Verify scratch is writable
+if touch "$HF_HOME/.write_test" 2>/dev/null; then
+    rm -f "$HF_HOME/.write_test"
+    echo "Scratch:       writable"
+else
+    echo "ERROR: Cannot write to $HF_HOME — check scratch filesystem"
+    exit 1
+fi
 echo ""
 
 # ── Models ────────────────────────────────────────────────────────────────

@@ -86,7 +86,17 @@ Before running the full pipeline, verify your cluster environment:
 sbatch scripts/slurm_test.sbatch
 ```
 
-This runs on the `debug-h200x4` partition (10 min) and checks GPU access, Python packages, HuggingFace auth, and project files without running any model inference.
+This runs on the `debug-h200x4` partition (10 min) and checks GPU access, Python packages, HuggingFace auth, scratch writability, and project files without running any model inference.
+
+### Pre-Downloading Models
+
+Download all model weights to scratch **before** running evaluation. This prevents OOM kills during the eval loop and avoids repeated downloads if a job restarts:
+
+```bash
+sbatch scripts/slurm_download.sbatch
+```
+
+Models are cached to `/lustre/nvwulf/scratch/$USER/hf_cache/`. The pipeline and test scripts read from this same location. Run `slurm_test.sbatch` after downloading to verify cached models are visible.
 
 ### Submitting the Job
 
@@ -206,6 +216,7 @@ src/
 
 scripts/
   run_matrix.sh              # Full pipeline script (local)
+  slurm_download.sbatch      # SLURM model pre-download (cluster)
   slurm_pipeline.sbatch      # SLURM batch script (cluster)
   slurm_test.sbatch          # SLURM environment test (cluster)
 
