@@ -78,6 +78,16 @@ The pipeline defaults to `h200x4-long` with 1x H200 (80GB HBM3e), which can hand
    - https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
    - https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct
 
+### Testing the Environment
+
+Before running the full pipeline, verify your cluster environment:
+
+```bash
+sbatch scripts/slurm_test.sbatch
+```
+
+This runs on the `debug-h200x4` partition (10 min) and checks GPU access, Python packages, HuggingFace auth, and project files without running any model inference.
+
 ### Submitting the Job
 
 ```bash
@@ -96,8 +106,8 @@ sbatch scripts/slurm_pipeline.sbatch dev --quantize
 # For 70B+ models, request more GPUs if needed
 sbatch --gres=gpu:h200:2 --mem=256G scripts/slurm_pipeline.sbatch final
 
-# Quick debug run (1h limit)
-sbatch --partition=debug-h200x4 --time=01:00:00 scripts/slurm_pipeline.sbatch dev
+# Quick debug run (1h limit, debug partitions have max 2 CPUs)
+sbatch --partition=debug-h200x4 --time=01:00:00 --cpus-per-task=2 --mem=22G scripts/slurm_pipeline.sbatch dev
 ```
 
 ### Customizing the SLURM Script
@@ -110,6 +120,7 @@ Edit `scripts/slurm_pipeline.sbatch` to change defaults:
 | `--gres` | `gpu:h200:1` | `gpu:h200:2` for 70B+ models if OOM |
 | `--mem` | `128G` | `256G` if using multiple GPUs |
 | `--time` | `24:00:00` | Max is 48h on `-long` partitions, 8h on standard |
+| `--cpus-per-task` | `8` | `debug-*` partitions allow max 2 CPUs |
 
 **Environment activation** (already configured in the script):
 ```bash
@@ -123,11 +134,11 @@ conda activate promptfragility
 # Check job status
 squeue -u $USER
 
-# Watch SLURM output in real-time
-tail -f logs/slurm_<JOBID>.out
+# Watch SLURM output in real-time (logs are moved to logs/ after job completes)
+tail -f pf-truthfulqa_<JOBID>.out
 
 # Check for errors
-tail -f logs/slurm_<JOBID>.err
+tail -f pf-truthfulqa_<JOBID>.err
 
 # Cancel a job
 scancel <JOBID>
@@ -159,7 +170,7 @@ results/runs/merged_dev_20250211_143022_job12345/
 
 The pipeline provides multiple levels of logging:
 
-- **SLURM logs** (`logs/slurm_<JOBID>.out/.err`): Job-level output including GPU diagnostics, model progress, and any SLURM errors.
+- **SLURM logs** (`pf-truthfulqa_<JOBID>.out/.err`): Job-level output including GPU diagnostics, model progress, and any SLURM errors. Moved to `logs/` after job completes.
 - **Per-model run logs** (`results/runs/<RUN_ID>/run.log`): Detailed logs with per-condition accuracy, timing, GPU memory usage, and any inference errors.
 - **GPU diagnostics**: GPU name, memory, and CUDA version are logged at job start and after each model/condition.
 
@@ -196,6 +207,7 @@ src/
 scripts/
   run_matrix.sh              # Full pipeline script (local)
   slurm_pipeline.sbatch      # SLURM batch script (cluster)
+  slurm_test.sbatch          # SLURM environment test (cluster)
 
 tests/
   test_prompts.py            # Prompt rendering and parser tests
