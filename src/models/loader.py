@@ -40,7 +40,7 @@ def load_model_and_tokenizer(
         tokenizer.pad_token = tokenizer.eos_token
 
     kwargs: dict[str, Any] = {
-        "torch_dtype": torch.float16,
+        "dtype": "auto",
     }
 
     if quantize_4bit and device.type == "cuda":
