@@ -53,4 +53,9 @@ logs/
 *.log
 *.tmp
 
+# Paper
+paper/*.aux
+paper/*.log
+paper/*.out
+
 CLAUDE.md
