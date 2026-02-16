@@ -35,6 +35,15 @@ class HFModelRunner:
         )
         self.device = next(self.model.parameters()).device
 
+    def _apply_chat_template(self, prompt: str) -> str:
+        """Wrap prompt in the model's chat template if available."""
+        if hasattr(self.tokenizer, "chat_template") and self.tokenizer.chat_template:
+            messages = [{"role": "user", "content": prompt}]
+            return self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        return prompt
+
     def generate(self, prompt: str) -> GenerationResult:
         """Generate text from a single prompt deterministically."""
         torch.manual_seed(self.decoding.seed)
@@ -43,7 +52,8 @@ class HFModelRunner:
         elif self.device.type == "mps":
             torch.mps.manual_seed(self.decoding.seed)
 
-        inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True)
+        formatted_prompt = self._apply_chat_template(prompt)
+        inputs = self.tokenizer(formatted_prompt, return_tensors="pt", truncation=True)
         input_ids = inputs["input_ids"].to(self.device)
         attention_mask = inputs["attention_mask"].to(self.device)
         input_len = input_ids.shape[1]
