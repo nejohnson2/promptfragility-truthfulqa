@@ -35,14 +35,21 @@ class HFModelRunner:
         )
         self.device = next(self.model.parameters()).device
 
-    def _apply_chat_template(self, prompt: str) -> str:
-        """Wrap prompt in the model's chat template if available."""
+    def _apply_chat_template(self, prompt: str) -> tuple[str, bool]:
+        """Wrap prompt in the model's chat template if available.
+
+        Returns:
+            (formatted_prompt, used_template) — used_template is True when the
+            chat template was applied, signalling that the caller should skip
+            adding special tokens during tokenization (avoids double-BOS).
+        """
         if hasattr(self.tokenizer, "chat_template") and self.tokenizer.chat_template:
             messages = [{"role": "user", "content": prompt}]
-            return self.tokenizer.apply_chat_template(
+            formatted = self.tokenizer.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True
             )
-        return prompt
+            return formatted, True
+        return prompt, False
 
     def generate(self, prompt: str) -> GenerationResult:
         """Generate text from a single prompt deterministically."""
@@ -52,8 +59,13 @@ class HFModelRunner:
         elif self.device.type == "mps":
             torch.mps.manual_seed(self.decoding.seed)
 
-        formatted_prompt = self._apply_chat_template(prompt)
-        inputs = self.tokenizer(formatted_prompt, return_tensors="pt", truncation=True)
+        formatted_prompt, used_template = self._apply_chat_template(prompt)
+        # When chat template was applied, it already includes BOS —
+        # skip add_special_tokens to avoid double-BOS (breaks Gemma, etc.)
+        inputs = self.tokenizer(
+            formatted_prompt, return_tensors="pt", truncation=True,
+            add_special_tokens=not used_template,
+        )
         input_ids = inputs["input_ids"].to(self.device)
         attention_mask = inputs["attention_mask"].to(self.device)
         input_len = input_ids.shape[1]
