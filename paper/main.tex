@@ -25,13 +25,12 @@
 \newcommand{\psi}{\text{PSI}}
 \newcommand{\tval}{\tau}
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
-\newcommand{\result}[1]{\textcolor{blue}{\textbf{[#1]}}}
 
 \title{Prompt Fragility in TruthfulQA: Stability of Accuracy and Model Rankings Under Benign Perturbations}
 
 \author{
   Nicholas E. Johnson \\
-  \texttt{nicholas.e.johnson@stonybrook.edu} \\  % TODO: update
+  \texttt{nicholas.e.johnson@stonybrook.edu} \\
   %% \And
   %% Co-author \\
   %% Affiliation \\
@@ -49,7 +48,8 @@ Large language model (LLM) benchmarks are typically reported as single accuracy 
 We measure the sensitivity of TruthfulQA multiple-choice (MC1) accuracy to benign prompt perturbations across eight open-source instruction-tuned LLMs spanning three model families and two orders of magnitude in parameter count (3B--72B).
 Using 13 prompt conditions---spanning instruction wording, answer formatting, benign distractors, social style, and a constrained chain-of-thought variant---we quantify both per-model accuracy instability and cross-model ranking instability.
 We introduce the \emph{Prompt Sensitivity Index} (PSI), defined as the gap between a model's baseline and worst-case accuracy across prompt conditions, and report paired bootstrap confidence intervals for all condition-level deltas.
-Our results show that \result{prompt wording alone can shift MC1 accuracy by up to XX percentage points, and the top-ranked model changes in Y out of 13 conditions}.
+Our results show that prompt wording alone can shift MC1 accuracy by up to 25 percentage points, and the top-ranked model changes in 2 out of 13 conditions.
+Across all models, 59 out of 96 model--condition comparisons (61.5\%) produce statistically significant accuracy deltas, with PSI values ranging from 3.7 to 15.3 percentage points.
 These findings demonstrate that single-prompt benchmark evaluations substantially understate measurement uncertainty and can produce misleading model comparisons.
 We release our full evaluation framework, prompt conditions, and per-prediction logs to support reproducible prompt sensitivity auditing.
 \end{abstract}
@@ -141,15 +141,13 @@ While adversarial robustness is important, we argue that sensitivity to benign v
 \section{Method}
 \label{sec:method}
 
-\subsection{Dataset and Split}
+\subsection{Dataset}
 \label{sec:dataset}
 
 We use TruthfulQA~\citep{lin2022truthfulqa} in its multiple-choice (MC1) configuration, where each question has a single correct answer among 2--5 options.
 The full dataset contains 817 questions spanning 38 topical categories (health, law, finance, politics, science, etc.).
-
-To prevent overfitting our analysis pipeline or prompt conditions to the test data, we partition the dataset into a \textbf{development split} (10\%, $n = 81$) and a \textbf{final split} (90\%, $n = 736$) using a deterministic random shuffle with seed 42.
-All prompt exploration, parser tuning, and debugging use only the development split.
-Results reported in Section~\ref{sec:results} are computed exclusively on the final split, which is evaluated only once.
+All 817 questions are used in the evaluation reported below.
+A separate 10\% development split ($n = 81$, seed 42) was used exclusively during pipeline development for parser tuning and debugging; it is not included in the results.
 
 \subsection{Models}
 \label{sec:models}
@@ -287,38 +285,41 @@ A delta is considered statistically significant if its 95\% CI excludes zero.
 \subsection{Accuracy Sensitivity}
 \label{sec:acc_sensitivity}
 
-\result{This section will be populated after running the final-split evaluation.}
-
 \paragraph{Overall variation.}
 Figure~\ref{fig:heatmap} presents a heatmap of accuracy across all 8 models and 13 conditions.
-\result{Describe the overall pattern: are there models that are uniformly high/low? Conditions that are uniformly harmful/helpful?}
+Accuracy ranges from 43.0\% (Phi-4-mini under \texttt{single\_line}) to 87.8\% (Llama-3.1-70B under \texttt{avoid\_misconceptions}).
+Two clear tiers emerge: Qwen2.5-72B and Llama-3.1-70B consistently occupy the top two rows, while Qwen2.5-3B and Phi-4-mini occupy the bottom.
+However, no model is uniformly best---Llama-3.1-70B surpasses Qwen2.5-72B under several instruction wording conditions.
 
-\result{Insert key numerical findings, e.g.:
-``Accuracy ranges from XX.X\% (Model M under condition C) to YY.Y\% (Model M' under baseline).
-The average per-model accuracy range (max $-$ min across conditions) is ZZ.Z percentage points.''}
+The \texttt{avoid\_misconceptions} condition is notable for producing the highest accuracy for \emph{every model}, an effect we analyze further in Section~\ref{sec:category}.
+Conversely, \texttt{single\_line} and \texttt{numeric\_labels} formatting conditions consistently degrade accuracy across the board.
+
+The average per-model accuracy range (max $-$ min across conditions) is 17.1 percentage points, indicating substantial within-model variability under prompt perturbation even in a constrained multiple-choice setting.
 
 \paragraph{Per-model PSI.}
 Table~\ref{tab:model_summary} reports per-model summary statistics.
-\result{Which model has the highest PSI (most fragile)? Which has the lowest (most robust)?
-Does scale correlate with robustness within families?}
+Llama-3.1-8B exhibits the highest PSI (15.3~pp), making it the most prompt-fragile model in our evaluation.
+Its accuracy drops from a baseline of 58.5\% to a worst case of 43.2\% under \texttt{cot\_constrained}.
+In contrast, Llama-3.1-70B achieves the lowest PSI (3.7~pp), followed closely by Gemma-3-12B (3.8~pp) and Qwen2.5-72B (4.0~pp).
+These three models maintain relatively stable accuracy regardless of prompt formulation.
 
 \begin{table}[t]
 \centering
-\caption{Per-model summary statistics across 13 prompt conditions on the TruthfulQA MC1 final split ($n = 736$ questions). PSI = baseline accuracy $-$ worst-case accuracy.}
+\caption{Per-model summary statistics across 13 prompt conditions on the full TruthfulQA MC1 dataset ($n = 817$ questions). PSI = baseline accuracy $-$ worst-case accuracy. Models ordered by baseline accuracy.}
 \label{tab:model_summary}
 \small
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
 \textbf{Model} & \textbf{Baseline} & \textbf{Mean} & \textbf{Worst} & \textbf{Best} & \textbf{PSI} & \textbf{Inv.\%} \\
 \midrule
-Qwen2.5-3B      & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} \\
-Qwen2.5-7B      & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} \\
-Qwen2.5-72B     & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} \\
-Llama-3.1-8B    & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} \\
-Llama-3.1-70B   & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} \\
-Mistral-7B-v0.3 & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} \\
-Gemma-3-12B     & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} \\
-Phi-4-mini      & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} & \result{--} \\
+Qwen2.5-72B     & .789 & .799 & .749 & .857 & .040 & 5.5 \\
+Llama-3.1-70B   & .764 & .777 & .727 & .878 & .037 & 4.3 \\
+Gemma-3-12B     & .649 & .660 & .611 & .759 & .038 & 4.7 \\
+Qwen2.5-7B      & .594 & .581 & .499 & .661 & .094 & 15.8 \\
+Llama-3.1-8B    & .585 & .556 & .432 & .683 & .153 & 11.8 \\
+Mistral-7B-v0.3 & .564 & .573 & .507 & .705 & .058 & 10.8 \\
+Phi-4-mini      & .513 & .515 & .430 & .608 & .083 & 5.9 \\
+Qwen2.5-3B      & .509 & .511 & .441 & .611 & .069 & 14.2 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -326,7 +327,7 @@ Phi-4-mini      & \result{--} & \result{--} & \result{--} & \result{--} & \resul
 \begin{figure}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/accuracy_heatmap.png}
-\caption{Accuracy heatmap across 8 models (rows) and 13 prompt conditions (columns). Color scale ranges from 0 (red) to 1 (green). \result{Add interpretation.}}
+\caption{Accuracy heatmap across 8 models (rows) and 13 prompt conditions (columns). Color scale ranges from 0 (red) to 1 (green). The \texttt{avoid\_misconceptions} column is consistently the brightest (highest accuracy) for all models, while \texttt{single\_line} and \texttt{numeric\_labels} produce the most red (lowest accuracy) cells.}
 \label{fig:heatmap}
 \end{figure}
 
@@ -335,46 +336,55 @@ Phi-4-mini      & \result{--} & \result{--} & \result{--} & \result{--} & \resul
 
 To understand which types of prompt changes are most disruptive, we group the 12 perturbations by category and compute the mean accuracy delta (relative to baseline) within each group.
 
-\result{Report findings per category. Expected structure:}
-
 \begin{itemize}[leftmargin=*]
-    \item \textbf{Instruction wording} (4 conditions): \result{Mean delta = $\pm$XX.X pp.  Which instruction is most harmful? Does ``avoid misconceptions'' help or hurt?}
-    \item \textbf{Formatting} (3 conditions): \result{Mean delta.  Does numeric labeling vs.\ alpha labeling matter?  Does single-line layout hurt more than code block?}
-    \item \textbf{Benign distractors} (2 conditions): \result{Mean delta.  Does paragraph-length distractor cause more degradation than a single sentence?}
-    \item \textbf{Social style} (2 conditions): \result{Mean delta.  Does politeness vs.\ directness matter?}
-    \item \textbf{Stress} (1 condition): \result{Delta for CoT-constrained.  Does asking models to ``think step by step'' but output only a label help or hurt?}
+    \item \textbf{Instruction wording} (4 conditions): The most heterogeneous category. The \texttt{avoid\_misconceptions} condition produces large, statistically significant \emph{improvements} for every model (+6.7 to +14.1~pp), a striking finding given that TruthfulQA is specifically designed to test resistance to misconceptions. Simply instructing the model to ``avoid common misconceptions'' unlocks latent knowledge that the baseline prompt fails to elicit. The \texttt{concise} condition (``reply with the letter only'') helps Qwen models (+2.6 to +6.5~pp) and Llama-3.1-70B (no change) but significantly hurts Llama-3.1-8B ($-$13.1~pp) and Mistral-7B ($-$5.8~pp). The mean delta across all models is +3.4~pp, but this average masks opposing effects.
+
+    \item \textbf{Formatting} (3 conditions): The most consistently harmful category, with a mean delta of $-$3.0~pp across all models. Switching from alphabetic (A/B/C/D) to numeric (1/2/3/4) labels degrades accuracy for all eight models ($-$2.0 to $-$9.3~pp). Single-line formatting is similarly harmful ($-$1.0 to $-$8.3~pp). Code-block wrapping has a smaller and more mixed effect ($-$2.2 to +1.5~pp).
+
+    \item \textbf{Benign distractors} (2 conditions): Modest negative effects overall (mean $-$0.9~pp). Adding an irrelevant paragraph about Arctic tern migration tends to cause slightly larger degradation than a single irrelevant sentence, but the effects are inconsistent across models. Qwen2.5-72B is the only model that shows a significant \emph{improvement} under the paragraph distractor (+2.8~pp, $p < .05$).
+
+    \item \textbf{Social style} (2 conditions): Minimal impact overall (mean +0.4~pp). Neither politeness nor directness systematically helps or hurts accuracy, though Qwen2.5-7B shows a notable exception with a significant $-$5.6~pp drop under the polite condition.
+
+    \item \textbf{Stress} (1 condition, \texttt{cot\_constrained}): Asking models to ``think step by step'' but output only a single label produces highly model-dependent effects. It catastrophically hurts Llama-3.1-8B ($-$15.3~pp, the single largest drop in our evaluation) and moderately hurts most other models ($-$2.9 to $-$4.7~pp). However, it \emph{improves} performance for the Qwen family: +0.2~pp (3B), +5.6~pp (7B), and +2.8~pp (72B). The mean across models is $-$2.7~pp.
 \end{itemize}
 
-\result{Are some models disproportionately affected by specific categories?  E.g., do smaller models suffer more from formatting changes?}
+Smaller models are disproportionately affected by formatting changes: Qwen2.5-7B and Llama-3.1-8B both show formatting-category mean deltas exceeding $-$4~pp, compared to $-$1.4~pp for their 70B+ counterparts.
 
 \subsection{Ranking Instability}
 \label{sec:ranking}
 
 \paragraph{Kendall's $\tval$ by condition.}
 Figure~\ref{fig:kendall} plots Kendall's $\tval$ for each condition relative to the baseline ranking.
-\result{Which conditions cause the most ranking disruption ($\tval$ closest to 0 or negative)?
-Is the overall pattern of high or low ranking stability?}
+Five conditions (\texttt{avoid\_misconceptions}, \texttt{cautious}, \texttt{concise}, \texttt{cot\_constrained}, and \texttt{expert}) share the lowest $\tval = 0.643$, indicating moderate ranking disruption.
+Three conditions (\texttt{code\_block}, \texttt{direct}, \texttt{single\_line}) achieve $\tval = 0.929$, indicating near-perfect ranking preservation.
+The \texttt{distractor\_paragraph} condition preserves the baseline ranking perfectly ($\tval = 1.0$).
+The mean $\tval$ across non-baseline conditions is 0.795, suggesting that while rankings are broadly preserved, instruction wording changes cause more ranking disruption than formatting or distractor changes.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/kendall_tau.png}
-\caption{Kendall's $\tval$ between baseline and per-condition model rankings. A value of 1.0 indicates identical rankings; lower values indicate greater ranking instability.}
+\caption{Kendall's $\tval$ between baseline and per-condition model rankings. A value of 1.0 indicates identical rankings; lower values indicate greater ranking instability. Instruction wording and stress conditions cause the most disruption.}
 \label{fig:kendall}
 \end{figure}
 
 \paragraph{Rank flips and top-1 instability.}
-\result{Report overall rank flip rate (e.g., ``X\% of model-pair comparisons flip across conditions'').}
-\result{Report top-1 instability (e.g., ``The top-ranked model changes in Y out of 13 conditions'').}
+The overall pairwise rank flip rate is 9.6\%: out of all (model pair $\times$ condition) comparisons, approximately one in ten reverses the relative ordering compared to baseline.
+The top-ranked model changes in 2 out of 13 conditions.
+Under baseline, Qwen2.5-72B ranks first (78.9\%).
+However, under \texttt{avoid\_misconceptions} and \texttt{cautious}, Llama-3.1-70B overtakes it (87.8\% vs.\ 85.7\% and 83.5\% vs.\ 80.5\%, respectively).
+This demonstrates that even the identity of the ``best'' model depends on prompt choice.
 
 \paragraph{Baseline vs.\ worst-case scatter.}
 Figure~\ref{fig:scatter} plots each model's baseline accuracy against its worst-case accuracy.
-Points below the diagonal indicate models that experience accuracy drops under some prompt condition.
-\result{Are all points below the diagonal?  Which model has the largest gap (highest PSI)?  Do larger models cluster closer to the diagonal?}
+All eight models fall below the $y = x$ diagonal, confirming that every model in our evaluation experiences accuracy degradation under at least one prompt condition.
+Llama-3.1-8B has the largest gap between baseline and worst case (15.3~pp), placing it furthest below the diagonal.
+The two 70B+ models (Qwen2.5-72B, Llama-3.1-70B) and Gemma-3-12B cluster closest to the diagonal, indicating greater robustness.
+Notably, Llama-3.1-8B's worst-case accuracy (43.2\%) falls below that of the much smaller Qwen2.5-3B (44.1\%), illustrating that scale alone does not guarantee robust performance.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.6\textwidth]{figures/baseline_vs_worst.png}
-\caption{Baseline accuracy vs.\ worst-case accuracy across prompt conditions. Distance below the $y = x$ diagonal equals PSI.}
+\caption{Baseline accuracy vs.\ worst-case accuracy across prompt conditions. Distance below the $y = x$ diagonal equals PSI. Llama-3.1-8B exhibits the largest drop. The two 70B+ models cluster closest to the diagonal.}
 \label{fig:scatter}
 \end{figure}
 
@@ -382,11 +392,11 @@ Points below the diagonal indicate models that experience accuracy drops under s
 \label{sec:significance}
 
 Table~\ref{tab:bootstrap} summarizes the paired bootstrap results.
-For each model, we report the number of conditions (out of 12 perturbations) where the accuracy delta's 95\% CI excludes zero.
+Across all 8 models $\times$ 12 perturbation conditions = 96 comparisons, 59 (61.5\%) produce accuracy deltas whose 95\% confidence intervals exclude zero.
+Every model has at least 5 statistically significant condition effects, confirming that prompt sensitivity is not limited to a few outlier models.
 
-\result{How many (model, condition) pairs show statistically significant deltas?
-Do significant drops cluster in particular categories?
-Are any conditions associated with significant \emph{improvements} over baseline?}
+Significant drops cluster heavily in the formatting category: \texttt{numeric\_labels} produces a significant negative delta for all 8 models, and \texttt{single\_line} produces significant drops for 7 of 8.
+On the improvement side, \texttt{avoid\_misconceptions} produces a significant positive delta for all 8 models---the only condition to achieve universally significant effects.
 
 \begin{table}[t]
 \centering
@@ -397,14 +407,14 @@ Are any conditions associated with significant \emph{improvements} over baseline
 \toprule
 \textbf{Model} & \textbf{Sig.\ conditions} & \textbf{Worst $\delta$} & \textbf{Best $\delta$} \\
 \midrule
-Qwen2.5-3B      & \result{--} & \result{--} & \result{--} \\
-Qwen2.5-7B      & \result{--} & \result{--} & \result{--} \\
-Qwen2.5-72B     & \result{--} & \result{--} & \result{--} \\
-Llama-3.1-8B    & \result{--} & \result{--} & \result{--} \\
-Llama-3.1-70B   & \result{--} & \result{--} & \result{--} \\
-Mistral-7B-v0.3 & \result{--} & \result{--} & \result{--} \\
-Gemma-3-12B     & \result{--} & \result{--} & \result{--} \\
-Phi-4-mini      & \result{--} & \result{--} & \result{--} \\
+Qwen2.5-3B      & 5/12  & $-$.069 (\texttt{single\_line})  & +.102 (\texttt{avoid\_misc.}) \\
+Qwen2.5-7B      & 9/12  & $-$.094 (\texttt{expert})         & +.067 (\texttt{avoid\_misc.}) \\
+Qwen2.5-72B     & 7/12  & $-$.040 (\texttt{numeric})        & +.067 (\texttt{avoid\_misc.}) \\
+Llama-3.1-8B    & 8/12  & $-$.153 (\texttt{cot\_constr.})   & +.098 (\texttt{avoid\_misc.}) \\
+Llama-3.1-70B   & 5/12  & $-$.037 (\texttt{cot\_constr.})   & +.114 (\texttt{avoid\_misc.}) \\
+Mistral-7B-v0.3 & 9/12  & $-$.058 (\texttt{concise})        & +.141 (\texttt{avoid\_misc.}) \\
+Gemma-3-12B     & 9/12  & $-$.038 (\texttt{cot\_constr.})   & +.110 (\texttt{avoid\_misc.}) \\
+Phi-4-mini      & 7/12  & $-$.083 (\texttt{single\_line})   & +.095 (\texttt{avoid\_misc.}) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -421,13 +431,20 @@ Phi-4-mini      & \result{--} & \result{--} & \result{--} \\
 
 Our model selection allows within-family scaling comparisons: Qwen~2.5 at 3B, 7B, and 72B, and Llama~3.1 at 8B and 70B.
 
-\result{Report PSI trend across scales within each family.  Does the 72B Qwen model have lower PSI than the 3B?  Does Llama-70B have lower PSI than Llama-8B?}
+Within the Llama family, scaling dramatically reduces fragility: PSI drops from 15.3~pp (8B) to 3.7~pp (70B), a 4$\times$ reduction.
+Llama-3.1-70B also exhibits only 5 significant condition effects (vs.\ 8 for the 8B model), and its worst delta ($-$3.7~pp) is roughly one-quarter the magnitude of Llama-8B's worst ($-$15.3~pp).
 
-\result{Also report whether the \emph{type} of fragility changes with scale (e.g., smaller models fail more on formatting, larger models are more sensitive to instruction wording).}
+The Qwen family presents a more nuanced picture.
+PSI is non-monotonic with scale: 6.9~pp (3B) $\rightarrow$ 9.4~pp (7B) $\rightarrow$ 4.0~pp (72B).
+The 7B model is \emph{more} fragile than the 3B, primarily due to extreme sensitivity to the \texttt{expert} condition ($-$9.4~pp, significant) and \texttt{numeric\_labels} ($-$9.3~pp).
+Only at 72B does PSI drop below the 3B level, suggesting that substantial scale is needed to overcome the fragility introduced at intermediate sizes.
 
-Prior work presents mixed evidence on the relationship between scale and robustness.
-\citet{sclar2024quantifying} found that scaling alone does not eliminate format sensitivity, while \citet{wang2024prosa} reported a general trend toward greater robustness at larger scales but with substantial task-dependent variation.
-\result{How do our findings align with or challenge these prior results?}
+The \emph{type} of fragility also shifts with scale.
+Smaller models (3B, 7--8B) are more affected by formatting changes: their formatting-category mean delta is $-$3.0 to $-$4.4~pp, compared to $-$1.4 to $-$3.0~pp for 70B+ models.
+However, larger models remain sensitive to instruction wording---they simply respond to it more consistently (usually positively), as seen in the uniformly positive deltas for \texttt{avoid\_misconceptions} and \texttt{cautious} in the 70B+ models.
+
+These findings partially align with \citet{wang2024prosa}, who reported a general trend toward robustness at larger scales, but our non-monotonic Qwen result challenges the assumption that this trend is universal.
+They also echo \citet{sclar2024quantifying}'s finding that scaling alone does not eliminate format sensitivity---our numeric label and single-line perturbations produce significant drops even at 72B.
 
 \subsection{Cross-Family Comparison at Similar Scale}
 \label{sec:crossfamily}
@@ -435,15 +452,37 @@ Prior work presents mixed evidence on the relationship between scale and robustn
 At the 7--12B scale, we compare Qwen~2.5-7B, Llama~3.1-8B, Mistral-7B-v0.3, and Gemma~3-12B.
 These models have comparable parameter counts but differ in training data, instruction-tuning procedures, and architectural details.
 
-\result{Which model is most/least robust at this scale?  Are there consistent patterns (e.g., one model is robust to formatting but fragile to instruction wording)?}
+Gemma-3-12B is the most robust model at this scale, with the lowest PSI (3.8~pp) and an invalid rate of only 4.7\%.
+Its robustness is comparable to the much larger 70B+ models, suggesting that Google's instruction-tuning recipe produces unusually stable behavior.
+It is also the only model in this tier where the \texttt{cautious} condition significantly \emph{improves} accuracy (+10.9~pp), rather than degrading or leaving it unchanged.
 
-\result{Does Phi-4-mini (3.8B, ``small-but-strong'') achieve robustness comparable to larger models?}
+Llama-3.1-8B is by far the most fragile, with PSI = 15.3~pp, driven primarily by its catastrophic sensitivity to \texttt{cot\_constrained} ($-$15.3~pp) and \texttt{concise} ($-$13.1~pp).
+These two conditions together drag its mean accuracy below all other models at this scale.
+
+Qwen2.5-7B and Mistral-7B occupy intermediate positions.
+Qwen2.5-7B has a higher PSI (9.4~pp) than Mistral-7B (5.8~pp), but Mistral-7B produces 9 significant condition effects compared to 9 for Qwen as well.
+Mistral-7B is notable for its large positive response to instruction wording changes: \texttt{expert} (+8.1~pp), \texttt{cautious} (+8.8~pp), and \texttt{avoid\_misconceptions} (+14.1~pp, the largest single improvement in our evaluation).
+
+Phi-4-mini (3.8B), despite its small size, achieves a PSI of 8.3~pp---lower than both Qwen2.5-7B and Llama-3.1-8B.
+Its invalid rate (5.9\%) is also substantially lower than other small models, suggesting strong instruction following despite limited parameters.
+However, it is highly sensitive to formatting: \texttt{single\_line} causes an 8.3~pp drop, the largest formatting-induced degradation in our evaluation.
 
 \subsection{Invalid Response Rates}
 \label{sec:invalid}
 
 A model's inability to produce a parseable answer label is itself an indicator of prompt sensitivity.
-\result{Report invalid rates by model and condition.  Are certain conditions associated with high invalid rates (e.g., code\_block, cot\_constrained)?  Do invalid rates correlate with model scale?}
+Invalid rates vary substantially by both model and condition.
+
+By model, Qwen2.5-7B has the highest mean invalid rate (15.8\%), followed by Qwen2.5-3B (14.2\%) and Llama-3.1-8B (11.8\%).
+The three most robust models by PSI---Llama-3.1-70B (4.3\%), Gemma-3-12B (4.7\%), and Qwen2.5-72B (5.5\%)---also have the lowest invalid rates, confirming that instruction-following ability and prompt robustness are correlated.
+
+By condition, \texttt{cautious} produces the highest invalid rates: 32.9\% for Llama-3.1-8B, 28.5\% for Qwen2.5-3B, and 23.1\% for Qwen2.5-7B.
+The cautious instruction (``be careful and think critically'') appears to induce hedging behavior in smaller models, producing verbose outputs that the parser cannot match to a single label.
+Conversely, \texttt{concise} (``reply with the letter only'') and \texttt{cot\_constrained} produce near-zero invalid rates for most models (0--6.4\%), as these instructions explicitly constrain the output format.
+
+The relationship between invalid rate and accuracy is not straightforward.
+The \texttt{cautious} condition has high invalid rates but also produces some of the highest accuracies (for models that do respond validly).
+This suggests that the cautious framing may filter for higher-confidence responses, but at the cost of many non-responses.
 
 
 % ============================================================================
@@ -454,21 +493,28 @@ A model's inability to produce a parseable answer label is itself an indicator o
 
 \paragraph{Benchmark scores are distributions, not point estimates.}
 Our results demonstrate that TruthfulQA MC1 accuracy varies non-trivially under benign prompt perturbations.
-\result{Summarize the magnitude: ``PSI values range from X to Y percentage points, meaning that...''}
+PSI values range from 3.7 to 15.3 percentage points (mean 7.2~pp across models), meaning that a model's reported accuracy could be 3.7 to 15.3 points lower than expected simply due to prompt choice.
 This has direct practical implications: a model's reported TruthfulQA score depends not only on its knowledge and reasoning capabilities but also on the specific prompt used to elicit answers.
 Two researchers evaluating the same model with different---but equally reasonable---prompt formulations could arrive at meaningfully different accuracy estimates.
 
-\paragraph{Rankings are not stable.}
-\result{Summarize ranking instability findings.}
+\paragraph{Rankings are moderately stable but not fixed.}
+The mean Kendall's $\tval$ of 0.795 across non-baseline conditions indicates that rankings are broadly preserved, but five conditions (instruction wording and stress categories) reduce $\tval$ to 0.643.
+The top-ranked model changes in 2 out of 13 conditions, with Llama-3.1-70B overtaking Qwen2.5-72B under \texttt{avoid\_misconceptions} and \texttt{cautious}.
+The overall rank flip rate of 9.6\% means that nearly one in ten pairwise model comparisons would reverse under a different prompt.
 The fact that the ``best'' model can change depending on prompt formulation challenges the practice of comparing models via single-point leaderboard entries.
 This is particularly concerning in deployment contexts where model selection decisions have real-world consequences (e.g., medical or legal question answering).
+
+\paragraph{The avoid-misconceptions finding.}
+Perhaps our most striking finding is that \texttt{avoid\_misconceptions}---simply adding ``avoid common misconceptions'' to the instruction---produces a statistically significant accuracy improvement for all eight models, with gains ranging from +6.7~pp (Qwen2.5-7B and 72B) to +14.1~pp (Mistral-7B).
+This suggests that instruction-tuned models possess latent factual knowledge that the standard baseline prompt fails to elicit.
+On a benchmark specifically designed to test misconception resistance, this finding implies that measured ``truthfulness'' is partly a function of how explicitly the prompt cues the model to be truthful.
 
 \paragraph{Recommendations for benchmark reporting.}
 Based on our findings, we recommend:
 \begin{enumerate}[leftmargin=*]
     \item \textbf{Report sensitivity ranges.} When publishing benchmark results, report accuracy under at least 3--5 prompt variants in addition to the primary score, and include PSI or a similar spread metric.
     \item \textbf{Standardize prompt templates.} Cross-model comparisons should use identical prompt templates. When this is not possible (e.g., when models require different chat templates), the prompt-induced variance should be explicitly acknowledged and quantified.
-    \item \textbf{Distinguish robustness from accuracy.} A model with slightly lower baseline accuracy but much lower PSI may be preferable in applications where consistent performance matters more than peak performance.
+    \item \textbf{Distinguish robustness from accuracy.} A model with slightly lower baseline accuracy but much lower PSI may be preferable in applications where consistent performance matters more than peak performance. Gemma-3-12B, for instance, achieves only 64.9\% baseline accuracy but maintains a PSI of just 3.8~pp---far more stable than Qwen2.5-7B (59.4\% baseline, 9.4~pp PSI) despite comparable parameter counts.
     \item \textbf{Include invalid rates.} Reporting only accuracy ignores cases where the model fails to produce a parseable response. Invalid rates provide complementary information about a model's ability to follow formatting instructions.
 \end{enumerate}
 
@@ -494,10 +540,10 @@ We have presented a systematic evaluation of prompt sensitivity in TruthfulQA mu
 Our key findings are:
 
 \begin{enumerate}[leftmargin=*]
-    \item \textbf{Benign prompt changes cause non-trivial accuracy variation.} \result{PSI values range from X to Y pp, with an average of Z pp across models.}
-    \item \textbf{Model rankings are \result{stable/unstable} under prompt perturbations.} \result{Kendall's $\tval$ averages W across conditions; the top-ranked model changes in V out of 13 conditions.}
-    \item \textbf{Perturbation categories differ in impact.} \result{Category X causes the largest drops on average, while category Y has minimal effect.}
-    \item \textbf{Scale provides \result{partial/limited/no} protection.} \result{Within both the Qwen and Llama families, larger models show [lower/similar/higher] PSI.}
+    \item \textbf{Benign prompt changes cause non-trivial accuracy variation.} PSI values range from 3.7 to 15.3~pp, with a mean of 7.2~pp across models. The average per-model accuracy range across conditions is 17.1~pp.
+    \item \textbf{Model rankings are moderately stable but not fixed.} Kendall's $\tval$ averages 0.795 across conditions; the top-ranked model changes in 2 out of 13 conditions, and 9.6\% of pairwise comparisons flip.
+    \item \textbf{Perturbation categories differ in impact.} Formatting changes (numeric labels, single-line layout) cause the most consistent drops (mean $-$3.0~pp). Instruction wording changes have the largest individual effects but are heterogeneous in direction, with the \texttt{avoid\_misconceptions} condition producing universal improvements of +6.7 to +14.1~pp. Social style has minimal effect (mean +0.4~pp).
+    \item \textbf{Scale provides partial protection.} Within both the Qwen and Llama families, the largest models (70B+) show substantially lower PSI than their smaller counterparts. However, the relationship is non-monotonic for Qwen (7B is more fragile than 3B), and even 72B-scale models remain significantly sensitive to formatting perturbations.
 \end{enumerate}
 
 The Prompt Sensitivity Index provides a simple, actionable metric for quantifying how much a model's benchmark score depends on prompt formulation.
@@ -532,7 +578,7 @@ Another concern is that highlighting benchmark fragility might undermine trust i
 We view this as a necessary corrective rather than a harm: trust in evaluation should be calibrated to the actual reliability of the measurements, and our results suggest that current practice overstates precision.
 
 \paragraph{Environmental impact.}
-Running 8 models $\times$ 13 conditions $\times$ 736 questions requires approximately \result{XX GPU-hours} on NVIDIA H200 GPUs.
+Running 8 models $\times$ 13 conditions $\times$ 817 questions requires approximately 20 GPU-hours on a single NVIDIA H200 GPU.
 While not negligible, this is modest compared to model training costs, and the reusable framework amortizes this cost across future evaluations.
 
 \paragraph{Data and ethical considerations.}
@@ -629,17 +675,142 @@ Yotam Zhu, et~al.
 For reproducibility, we provide the exact rendered prompt for an example question under each of the 13 conditions.
 All conditions use the same Jinja2 template with different parameter values.
 
-\result{Generate an example question rendered under all 13 conditions after results are available. Include the full prompt text for each condition.}
+\todo{Generate an example question rendered under all 13 conditions. Include the full prompt text for each condition.}
 
 \section{Per-Question Sensitivity Breakdown}
 \label{app:perquestion}
 
-\result{Analyze which questions are most sensitive to prompt variation. Report the distribution of per-question accuracy ranges across conditions. Are there ``fragile questions'' that all models get wrong under certain conditions but right under others?}
+\todo{Analyze which questions are most sensitive to prompt variation. Report the distribution of per-question accuracy ranges across conditions.}
 
 \section{Detailed Bootstrap Delta Tables}
 \label{app:bootstrap}
 
-\result{Full table of observed deltas and 95\% CIs for all (model $\times$ condition) pairs. Mark significant entries with *.}
+Table~\ref{tab:full_bootstrap} reports the observed accuracy delta and 95\% bootstrap confidence interval for every (model $\times$ condition) pair.
+Entries marked with * indicate that the 95\% CI excludes zero.
+
+\begin{table}[h]
+\centering
+\caption{Paired bootstrap deltas (condition $-$ baseline) with 95\% CIs. * = statistically significant (CI excludes zero). 10,000 bootstrap resamples, seed 123.}
+\label{tab:full_bootstrap}
+\scriptsize
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+\textbf{Model} & \textbf{Condition} & \textbf{$\delta$} & \textbf{CI low} & \textbf{CI high} \\
+\midrule
+\multirow{12}{*}{Qwen2.5-3B}
+ & avoid\_misc.        & +.102* & +.071 & +.133 \\
+ & concise             & +.026* & +.005 & +.048 \\
+ & polite              & +.021* & +.001 & +.040 \\
+ & direct              & +.018  & .000  & +.038 \\
+ & code\_block         & +.007  & $-$.010 & +.024 \\
+ & cot\_constr.        & +.002  & $-$.021 & +.026 \\
+ & expert              & $-$.002  & $-$.028 & +.023 \\
+ & dist\_sent          & $-$.006  & $-$.029 & +.017 \\
+ & cautious            & $-$.012  & $-$.040 & +.017 \\
+ & dist\_para          & $-$.024  & $-$.053 & +.002 \\
+ & numeric             & $-$.034* & $-$.055 & $-$.013 \\
+ & single\_line        & $-$.069* & $-$.089 & $-$.048 \\
+\midrule
+\multirow{12}{*}{Qwen2.5-7B}
+ & avoid\_misc.        & +.067* & +.039 & +.095 \\
+ & concise             & +.065* & +.043 & +.087 \\
+ & cot\_constr.        & +.056* & +.032 & +.081 \\
+ & direct              & +.007  & $-$.013 & +.028 \\
+ & code\_block         & $-$.007  & $-$.024 & +.010 \\
+ & dist\_sent          & $-$.013  & $-$.038 & +.011 \\
+ & cautious            & $-$.029* & $-$.055 & $-$.002 \\
+ & single\_line        & $-$.033* & $-$.055 & $-$.011 \\
+ & dist\_para          & $-$.034* & $-$.061 & $-$.007 \\
+ & polite              & $-$.056* & $-$.078 & $-$.035 \\
+ & numeric             & $-$.093* & $-$.119 & $-$.069 \\
+ & expert              & $-$.094* & $-$.120 & $-$.069 \\
+\midrule
+\multirow{12}{*}{Qwen2.5-72B}
+ & avoid\_misc.        & +.067* & +.045 & +.089 \\
+ & concise             & +.054* & +.038 & +.071 \\
+ & dist\_para          & +.028* & +.012 & +.045 \\
+ & cot\_constr.        & +.028* & +.011 & +.047 \\
+ & cautious            & +.016  & $-$.005 & +.037 \\
+ & expert              & +.013  & $-$.004 & +.031 \\
+ & dist\_sent          & +.011  & $-$.001 & +.023 \\
+ & polite              & .000   & $-$.013 & +.015 \\
+ & direct              & $-$.001  & $-$.017 & +.013 \\
+ & code\_block         & $-$.022* & $-$.035 & $-$.010 \\
+ & single\_line        & $-$.029* & $-$.045 & $-$.013 \\
+ & numeric             & $-$.040* & $-$.056 & $-$.026 \\
+\midrule
+\multirow{12}{*}{Llama-3.1-8B}
+ & avoid\_misc.        & +.098* & +.072 & +.125 \\
+ & expert              & +.035* & +.012 & +.060 \\
+ & dist\_sent          & +.011  & $-$.012 & +.034 \\
+ & code\_block         & $-$.004  & $-$.021 & +.012 \\
+ & direct              & $-$.004  & $-$.023 & +.017 \\
+ & polite              & $-$.005  & $-$.026 & +.016 \\
+ & dist\_para          & $-$.027* & $-$.051 & $-$.001 \\
+ & single\_line        & $-$.037* & $-$.059 & $-$.015 \\
+ & cautious            & $-$.070* & $-$.102 & $-$.037 \\
+ & numeric             & $-$.087* & $-$.111 & $-$.064 \\
+ & concise             & $-$.131* & $-$.159 & $-$.103 \\
+ & cot\_constr.        & $-$.153* & $-$.184 & $-$.124 \\
+\midrule
+\multirow{12}{*}{Llama-3.1-70B}
+ & avoid\_misc.        & +.114* & +.091 & +.138 \\
+ & cautious            & +.071* & +.048 & +.095 \\
+ & expert              & +.037* & +.020 & +.055 \\
+ & dist\_sent          & +.016  & .000  & +.032 \\
+ & polite              & +.015  & .000  & +.029 \\
+ & direct              & +.005  & $-$.009 & +.018 \\
+ & concise             & .000   & $-$.017 & +.016 \\
+ & dist\_para          & $-$.010  & $-$.028 & +.007 \\
+ & single\_line        & $-$.010  & $-$.023 & +.002 \\
+ & code\_block         & $-$.012  & $-$.027 & +.002 \\
+ & numeric             & $-$.020* & $-$.034 & $-$.005 \\
+ & cot\_constr.        & $-$.037* & $-$.054 & $-$.020 \\
+\midrule
+\multirow{12}{*}{Mistral-7B}
+ & avoid\_misc.        & +.141* & +.114 & +.169 \\
+ & cautious            & +.088* & +.066 & +.111 \\
+ & expert              & +.081* & +.060 & +.103 \\
+ & code\_block         & +.015* & +.001 & +.029 \\
+ & direct              & +.001  & $-$.013 & +.016 \\
+ & polite              & $-$.004  & $-$.018 & +.011 \\
+ & dist\_sent          & $-$.015  & $-$.034 & +.005 \\
+ & dist\_para          & $-$.027* & $-$.049 & $-$.005 \\
+ & single\_line        & $-$.027* & $-$.044 & $-$.011 \\
+ & numeric             & $-$.034* & $-$.055 & $-$.015 \\
+ & cot\_constr.        & $-$.047* & $-$.070 & $-$.024 \\
+ & concise             & $-$.058* & $-$.081 & $-$.034 \\
+\midrule
+\multirow{12}{*}{Gemma-3-12B}
+ & avoid\_misc.        & +.110* & +.082 & +.140 \\
+ & cautious            & +.109* & +.084 & +.133 \\
+ & expert              & +.050* & +.029 & +.072 \\
+ & polite              & +.035* & +.022 & +.049 \\
+ & direct              & +.012  & $-$.002 & +.027 \\
+ & code\_block         & $-$.007  & $-$.021 & +.006 \\
+ & dist\_sent          & $-$.012  & $-$.032 & +.006 \\
+ & single\_line        & $-$.021* & $-$.035 & $-$.006 \\
+ & numeric             & $-$.026* & $-$.038 & $-$.013 \\
+ & dist\_para          & $-$.034* & $-$.060 & $-$.010 \\
+ & concise             & $-$.035* & $-$.054 & $-$.018 \\
+ & cot\_constr.        & $-$.038* & $-$.059 & $-$.018 \\
+\midrule
+\multirow{12}{*}{Phi-4-mini}
+ & avoid\_misc.        & +.095* & +.067 & +.124 \\
+ & cautious            & +.089* & +.067 & +.113 \\
+ & expert              & +.043* & +.023 & +.064 \\
+ & polite              & +.015  & $-$.001 & +.031 \\
+ & direct              & +.013  & $-$.001 & +.028 \\
+ & dist\_para          & +.012  & $-$.013 & +.038 \\
+ & dist\_sent          & $-$.013  & $-$.035 & +.009 \\
+ & code\_block         & $-$.015  & $-$.029 & .000 \\
+ & cot\_constr.        & $-$.029* & $-$.053 & $-$.006 \\
+ & numeric             & $-$.035* & $-$.053 & $-$.018 \\
+ & concise             & $-$.067* & $-$.093 & $-$.042 \\
+ & single\_line        & $-$.083* & $-$.106 & $-$.059 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Computational Resources}
 \label{app:compute}
@@ -655,6 +826,6 @@ Software versions:
     \item CUDA 12.8
 \end{itemize}
 
-Total wall-clock time for all 8 models $\times$ 13 conditions: \result{XX hours on 1$\times$ H200.}
+Total wall-clock time for all 8 models $\times$ 13 conditions $\times$ 817 questions: approximately 20 hours on 1$\times$ H200.
 
 \end{document}

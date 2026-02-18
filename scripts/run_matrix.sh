@@ -90,6 +90,10 @@ FAILED_MODELS=()
 MODEL_IDX=0
 TOTAL_MODELS=${#MODELS[@]}
 
+# Snapshot existing run directories so the merge step only picks up new ones
+EXISTING_DIRS_FILE="$(mktemp)"
+find "$OUTPUT_BASE" -maxdepth 1 -type d -name '20*' 2>/dev/null | sort > "$EXISTING_DIRS_FILE" || true
+
 for MODEL_ID in "${MODELS[@]}"; do
     MODEL_IDX=$((MODEL_IDX + 1))
     MODEL_SHORT=$(echo "$MODEL_ID" | sed 's|.*/||')
@@ -130,11 +134,14 @@ MERGED_DIR="$OUTPUT_BASE/merged_${RUN_TAG}"
 mkdir -p "$MERGED_DIR/figures"
 
 > "$MERGED_DIR/predictions.jsonl"
-for RUN_DIR in "$OUTPUT_BASE"/20*; do
-    [ -d "$RUN_DIR" ] || continue
+# Only merge directories created during this run (not pre-existing ones)
+NEW_DIRS_FILE="$(mktemp)"
+find "$OUTPUT_BASE" -maxdepth 1 -type d -name '20*' 2>/dev/null | sort > "$NEW_DIRS_FILE" || true
+while IFS= read -r RUN_DIR; do
     [ -f "$RUN_DIR/predictions.jsonl" ] || continue
     cat "$RUN_DIR/predictions.jsonl" >> "$MERGED_DIR/predictions.jsonl"
-done
+done < <(comm -13 "$EXISTING_DIRS_FILE" "$NEW_DIRS_FILE")
+rm -f "$EXISTING_DIRS_FILE" "$NEW_DIRS_FILE"
 
 PRED_COUNT=$(wc -l < "$MERGED_DIR/predictions.jsonl")
 echo "  Merged → $PRED_COUNT prediction records"

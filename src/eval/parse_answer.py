@@ -4,13 +4,30 @@ Rules:
   1. If the output contains "Answer: X" (case-insensitive), parse X.
   2. If the output is a single token matching a valid label, accept it.
   3. Otherwise, look for standalone label tokens (word boundaries).
-  4. Valid labels depend on label_style: A-D (alpha) or 1-4 (numeric).
+  4. Valid labels are derived from the label_map (supports any number of choices).
   5. If no valid label is found, mark as invalid.
 """
 
 from __future__ import annotations
 
 import re
+
+
+def _build_label_pattern(valid_displayed: set[str]) -> str:
+    """Build a regex character class matching all valid displayed labels."""
+    # Separate alpha and numeric labels, build pattern from actual keys
+    alphas = sorted(c for c in valid_displayed if c.isalpha())
+    digits = sorted(c for c in valid_displayed if c.isdigit())
+
+    parts: list[str] = []
+    if alphas:
+        lo, hi = alphas[0], alphas[-1]
+        parts.append(f"{lo}-{hi}{lo.lower()}-{hi.lower()}")
+    if digits:
+        lo, hi = digits[0], digits[-1]
+        parts.append(f"{lo}-{hi}")
+
+    return f"[{''.join(parts)}]"
 
 
 def parse_mc_answer(
@@ -33,10 +50,12 @@ def parse_mc_answer(
 
     # Determine if we're looking for alpha or numeric labels
     has_alpha = any(c.isalpha() for c in valid_displayed)
-    has_numeric = any(c.isdigit() for c in valid_displayed)
+
+    # Build regex fragment matching any valid displayed label
+    label_class = _build_label_pattern(valid_displayed)
 
     # Strategy 1: look for "Answer: X" pattern
-    m = re.search(r"[Aa]nswer\s*:\s*([A-Da-d1-4])", text)
+    m = re.search(rf"[Aa]nswer\s*:\s*({label_class})", text)
     if m:
         token = m.group(1).upper()
         if token in valid_displayed:
@@ -47,7 +66,7 @@ def parse_mc_answer(
         return label_map[text.upper()], False
 
     # Also check patterns like "A)" or "A." at the start
-    m = re.match(r"^([A-Da-d1-4])[).\s]", text)
+    m = re.match(rf"^({label_class})[).:\s]", text)
     if m:
         token = m.group(1).upper()
         if token in valid_displayed:
@@ -56,9 +75,9 @@ def parse_mc_answer(
     # Strategy 3: look for standalone label tokens (word-boundary matching)
     # For alpha labels, require word boundaries to avoid matching letters inside words
     if has_alpha:
-        pattern = r"(?<![a-zA-Z])([A-Da-d])(?![a-zA-Z])"
+        pattern = rf"(?<![a-zA-Z])({label_class})(?![a-zA-Z])"
     else:
-        pattern = r"(?<!\d)([1-4])(?!\d)"
+        pattern = rf"(?<!\d)({label_class})(?!\d)"
 
     for m in re.finditer(pattern, text):
         token = m.group(1).upper()

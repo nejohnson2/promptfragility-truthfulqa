@@ -77,6 +77,9 @@ def compute_ranking_metrics(accuracy_table: pd.DataFrame) -> dict:
     baseline_top1 = baseline_order[0] if baseline_order else None
 
     conditions = accuracy_table["condition_id"].unique()
+    # Exclude baseline when computing flip rate and top-1 instability
+    # (flips are measured "compared to baseline", so baseline vs itself is excluded)
+    non_baseline_conditions = [c for c in conditions if c != "baseline"]
     models = accuracy_table["model_id"].unique()
 
     kendall_taus = {}
@@ -88,7 +91,7 @@ def compute_ranking_metrics(accuracy_table: pd.DataFrame) -> dict:
         cond_df = cond_df.sort_values("accuracy", ascending=False)
         cond_ranking = {row["model_id"]: rank for rank, (_, row) in enumerate(cond_df.iterrows())}
 
-        # Kendall tau
+        # Kendall tau (compute for all conditions including baseline for completeness)
         if len(cond_ranking) >= 2:
             baseline_ranks = [baseline_ranking.get(m, 0) for m in models]
             cond_ranks = [cond_ranking.get(m, 0) for m in models]
@@ -96,6 +99,10 @@ def compute_ranking_metrics(accuracy_table: pd.DataFrame) -> dict:
             kendall_taus[cond_id] = tau
         else:
             kendall_taus[cond_id] = np.nan
+
+        # Skip baseline for flip rate and top-1 instability
+        if cond_id == "baseline":
+            continue
 
         # Top-1 instability
         cond_top1 = list(cond_ranking.keys())[0] if cond_ranking else None
@@ -116,15 +123,16 @@ def compute_ranking_metrics(accuracy_table: pd.DataFrame) -> dict:
                 all_pair_flips.append(0)
 
     n_pairs = len(list(combinations(models, 2)))
-    n_conditions = len(conditions)
-    total_comparisons = n_pairs * n_conditions
+    n_non_baseline = len(non_baseline_conditions)
+    total_comparisons = n_pairs * n_non_baseline
     rank_flip_rate = sum(all_pair_flips) / total_comparisons if total_comparisons > 0 else 0.0
 
     return {
         "kendall_tau": kendall_taus,
         "rank_flip_rate": rank_flip_rate,
         "top1_instability": top1_changes,
-        "n_conditions": n_conditions,
+        "n_conditions": len(conditions),
+        "n_non_baseline_conditions": n_non_baseline,
     }
 
 
@@ -170,7 +178,7 @@ def main() -> None:
     print("\n=== Model Summary ===")
     print(summary.to_string(index=False))
     print(f"\nRank flip rate: {ranking['rank_flip_rate']:.3f}")
-    print(f"Top-1 instability: {ranking['top1_instability']} / {ranking['n_conditions']} conditions")
+    print(f"Top-1 instability: {ranking['top1_instability']} / {ranking['n_non_baseline_conditions']} non-baseline conditions")
 
 
 if __name__ == "__main__":

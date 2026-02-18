@@ -76,11 +76,64 @@ class TestPromptRendering:
         assert "Helsinki" in prompt_text
 
 
+EXAMPLE_RECORD_7_CHOICES = {
+    "question_id": 99,
+    "question": "Which of the following is true?",
+    "choices": [
+        {"label": "A", "text": "Option one"},
+        {"label": "B", "text": "Option two"},
+        {"label": "C", "text": "Option three"},
+        {"label": "D", "text": "Option four"},
+        {"label": "E", "text": "Option five"},
+        {"label": "F", "text": "Option six"},
+        {"label": "G", "text": "Option seven"},
+    ],
+    "correct_label": "E",
+    "category": "Test",
+    "split": "dev",
+}
+
+
+class TestPromptRenderingExtended:
+    """Verify prompt rendering works with >4 choices."""
+
+    def test_render_7_choices_alpha(self) -> None:
+        conditions = load_conditions(CONDITIONS_PATH)
+        baseline = [c for c in conditions if c["id"] == "baseline"][0]
+        prompt_text, label_map = render_prompt(
+            EXAMPLE_RECORD_7_CHOICES, baseline, TEMPLATE_PATH
+        )
+        assert "G)" in prompt_text
+        assert len(label_map) == 7
+        assert label_map["E"] == "E"
+        assert label_map["G"] == "G"
+
+    def test_render_7_choices_numeric(self) -> None:
+        conditions = load_conditions(CONDITIONS_PATH)
+        numeric = [c for c in conditions if c["id"] == "numeric_labels"][0]
+        prompt_text, label_map = render_prompt(
+            EXAMPLE_RECORD_7_CHOICES, numeric, TEMPLATE_PATH
+        )
+        assert "7)" in prompt_text
+        assert len(label_map) == 7
+        assert label_map["5"] == "E"
+        assert label_map["7"] == "G"
+
+
 class TestAnswerParser:
     """Verify answer parsing works correctly."""
 
     ALPHA_MAP = {"A": "A", "B": "B", "C": "C", "D": "D"}
     NUMERIC_MAP = {"1": "A", "2": "B", "3": "C", "4": "D"}
+    # Extended maps for questions with >4 choices (TruthfulQA has up to 13)
+    ALPHA_MAP_7 = {
+        "A": "A", "B": "B", "C": "C", "D": "D",
+        "E": "E", "F": "F", "G": "G",
+    }
+    NUMERIC_MAP_7 = {
+        "1": "A", "2": "B", "3": "C", "4": "D",
+        "5": "E", "6": "F", "7": "G",
+    }
 
     def test_parse_single_letter(self) -> None:
         label, invalid = parse_mc_answer("B", self.ALPHA_MAP)
@@ -118,6 +171,50 @@ class TestAnswerParser:
     def test_parse_letter_in_word_ignored(self) -> None:
         # Letters embedded in words like "don't" should not match
         label, invalid = parse_mc_answer("I don't know what it could be", self.ALPHA_MAP)
+        assert label is None
+        assert invalid
+
+    # --- Extended label tests (>4 choices) ---
+
+    def test_parse_extended_alpha_single(self) -> None:
+        label, invalid = parse_mc_answer("E", self.ALPHA_MAP_7)
+        assert label == "E"
+        assert not invalid
+
+    def test_parse_extended_alpha_answer_colon(self) -> None:
+        label, invalid = parse_mc_answer("Answer: G", self.ALPHA_MAP_7)
+        assert label == "G"
+        assert not invalid
+
+    def test_parse_extended_alpha_with_paren(self) -> None:
+        label, invalid = parse_mc_answer("F) is the correct one", self.ALPHA_MAP_7)
+        assert label == "F"
+        assert not invalid
+
+    def test_parse_extended_numeric_single(self) -> None:
+        label, invalid = parse_mc_answer("5", self.NUMERIC_MAP_7)
+        assert label == "E"
+        assert not invalid
+
+    def test_parse_extended_numeric_answer_colon(self) -> None:
+        label, invalid = parse_mc_answer("Answer: 7", self.NUMERIC_MAP_7)
+        assert label == "G"
+        assert not invalid
+
+    def test_parse_extended_numeric_with_paren(self) -> None:
+        label, invalid = parse_mc_answer("6) seems right", self.NUMERIC_MAP_7)
+        assert label == "F"
+        assert not invalid
+
+    def test_parse_extended_alpha_invalid_beyond_range(self) -> None:
+        # H is not in the 7-option map
+        label, invalid = parse_mc_answer("H", self.ALPHA_MAP_7)
+        assert label is None
+        assert invalid
+
+    def test_parse_extended_numeric_invalid_beyond_range(self) -> None:
+        # 8 is not in the 7-option map
+        label, invalid = parse_mc_answer("8", self.NUMERIC_MAP_7)
         assert label is None
         assert invalid
 
