@@ -35,7 +35,7 @@ htmlcov/
 data/truthfulqa_cache.jsonl
 
 # Results (large, per-run artifacts)
-results/runs/*/predictions.jsonl
+#results/runs/*/predictions.jsonl
 results/runs/*/figures/*.png
 
 # Model cache
