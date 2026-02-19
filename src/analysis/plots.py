@@ -138,12 +138,109 @@ def plot_baseline_vs_worst(summary_df: pd.DataFrame, output_dir: Path) -> None:
     print(f"  Saved baseline_vs_worst.png")
 
 
+def plot_psi_sensitivity(psi_sensitivity_path: Path, output_dir: Path) -> None:
+    """Line plot showing PSI convergence as perturbation subset size increases."""
+    df = pd.read_csv(psi_sensitivity_path)
+    if df.empty:
+        print("  Skipping PSI sensitivity plot — no data.")
+        return
+
+    models = df["model_id"].unique()
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    cmap = plt.cm.tab10
+    for i, model_id in enumerate(sorted(models)):
+        mdf = df[df["model_id"] == model_id].sort_values("k")
+        short = model_id.split("/")[-1]
+        color = cmap(i / max(len(models) - 1, 1))
+
+        ax.plot(mdf["k"], mdf["psi_mean"] * 100, "o-", color=color, label=short, linewidth=1.5, markersize=5)
+        ax.fill_between(
+            mdf["k"],
+            mdf["psi_p25"] * 100,
+            mdf["psi_p75"] * 100,
+            alpha=0.15,
+            color=color,
+        )
+
+    ax.set_xlabel("Number of perturbation conditions sampled ($k$)", fontsize=12)
+    ax.set_ylabel("PSI (percentage points)", fontsize=12)
+    ax.set_title("PSI Sensitivity to Perturbation Subset Size", fontsize=13)
+    ax.legend(fontsize=8, loc="lower right", ncol=2)
+    ax.set_xticks([3, 5, 7, 9, 12])
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    fig.savefig(output_dir / "psi_subset_sensitivity.png", dpi=150)
+    plt.close(fig)
+    print(f"  Saved psi_subset_sensitivity.png")
+
+
+def plot_parse_stage_distribution(parse_ablation_path: Path, output_dir: Path) -> None:
+    """Stacked bar chart showing parse stage distribution by condition."""
+    df = pd.read_csv(parse_ablation_path)
+    if df.empty:
+        print("  Skipping parse stage plot — no data.")
+        return
+
+    # Aggregate across models: total counts per (condition, stage)
+    agg = df.groupby(["condition_id", "stage"])["count"].sum().reset_index()
+    totals = agg.groupby("condition_id")["count"].sum().reset_index()
+    totals.columns = ["condition_id", "total"]
+    agg = agg.merge(totals, on="condition_id")
+    agg["pct"] = agg["count"] / agg["total"] * 100
+
+    # Pivot for stacked bar
+    stages_order = ["answer_pattern", "exact_token", "label_punctuation", "word_boundary", "invalid"]
+    stage_labels = {
+        "answer_pattern": "Answer: X",
+        "exact_token": "Exact token",
+        "label_punctuation": "Label+punct",
+        "word_boundary": "Word boundary",
+        "invalid": "Invalid",
+    }
+    stage_colors = {
+        "answer_pattern": "#2ecc71",
+        "exact_token": "#3498db",
+        "label_punctuation": "#9b59b6",
+        "word_boundary": "#e67e22",
+        "invalid": "#e74c3c",
+    }
+
+    conditions = sorted(agg["condition_id"].unique())
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    bottom = np.zeros(len(conditions))
+    for stage in stages_order:
+        vals = []
+        for cond in conditions:
+            row = agg[(agg["condition_id"] == cond) & (agg["stage"] == stage)]
+            vals.append(row["pct"].values[0] if len(row) > 0 else 0.0)
+        ax.bar(conditions, vals, bottom=bottom, label=stage_labels[stage],
+               color=stage_colors[stage], edgecolor="white", linewidth=0.5)
+        bottom += np.array(vals)
+
+    ax.set_ylabel("Percentage of outputs (%)", fontsize=12)
+    ax.set_xlabel("Prompt condition", fontsize=12)
+    ax.set_title("Parse Stage Distribution by Condition (All Models)", fontsize=13)
+    ax.legend(fontsize=9, loc="upper right")
+    plt.xticks(rotation=45, ha="right")
+    ax.set_ylim(0, 105)
+    plt.tight_layout()
+    fig.savefig(output_dir / "parse_stage_distribution.png", dpi=150)
+    plt.close(fig)
+    print(f"  Saved parse_stage_distribution.png")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate analysis plots.")
     parser.add_argument("--aggregated", type=Path, required=True)
     parser.add_argument("--ranking_metrics", type=Path, required=True)
     parser.add_argument("--model_summary", type=Path, required=True)
     parser.add_argument("--output_dir", type=Path, required=True)
+    parser.add_argument("--psi_sensitivity", type=Path, default=None,
+                        help="Path to psi_sensitivity.csv (optional)")
+    parser.add_argument("--parse_ablation", type=Path, default=None,
+                        help="Path to parse_ablation.csv (optional)")
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -158,6 +255,13 @@ def main() -> None:
     plot_accuracy_bars(df, args.output_dir)
     plot_kendall_tau(ranking_metrics, args.output_dir)
     plot_baseline_vs_worst(summary_df, args.output_dir)
+
+    # New figures (optional — only if analysis outputs exist)
+    if args.psi_sensitivity and args.psi_sensitivity.exists():
+        plot_psi_sensitivity(args.psi_sensitivity, args.output_dir)
+    if args.parse_ablation and args.parse_ablation.exists():
+        plot_parse_stage_distribution(args.parse_ablation, args.output_dir)
+
     print(f"\nAll figures saved to {args.output_dir}")
 
 

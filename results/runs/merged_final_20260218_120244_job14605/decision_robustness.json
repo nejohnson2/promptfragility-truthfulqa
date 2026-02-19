@@ -1,0 +1,74 @@
+{
+  "n_top1_changes": 2,
+  "n_top1_significant": 0,
+  "frac_top1_significant": 0.0,
+  "total_flips": 32,
+  "flips_within_ci": 21,
+  "frac_flips_within_ci": 0.656,
+  "top1_details": [
+    {
+      "condition_id": "avoid_misconceptions",
+      "baseline_top1": "Qwen2.5-72B-Instruct",
+      "condition_top1": "Llama-3.1-70B-Instruct",
+      "accuracy_gap": 0.0122,
+      "significant": false
+    },
+    {
+      "condition_id": "cautious",
+      "baseline_top1": "Qwen2.5-72B-Instruct",
+      "condition_top1": "Llama-3.1-70B-Instruct",
+      "accuracy_gap": 0.0272,
+      "significant": false
+    }
+  ],
+  "per_pair_flips": {
+    "Qwen2.5-72B-Instruct vs Llama-3.1-70B-Instruct": {
+      "total": 2,
+      "within_ci": 2
+    },
+    "Qwen2.5-7B-Instruct vs Llama-3.1-8B-Instruct": {
+      "total": 4,
+      "within_ci": 3
+    },
+    "Qwen2.5-7B-Instruct vs Mistral-7B-Instruct-v0.3": {
+      "total": 5,
+      "within_ci": 3
+    },
+    "Llama-3.1-8B-Instruct vs Mistral-7B-Instruct-v0.3": {
+      "total": 6,
+      "within_ci": 4
+    },
+    "Qwen2.5-3B-Instruct vs Phi-4-mini-instruct": {
+      "total": 3,
+      "within_ci": 2
+    },
+    "Qwen2.5-7B-Instruct vs Phi-4-mini-instruct": {
+      "total": 2,
+      "within_ci": 1
+    },
+    "Llama-3.1-8B-Instruct vs Phi-4-mini-instruct": {
+      "total": 2,
+      "within_ci": 1
+    },
+    "Qwen2.5-3B-Instruct vs Llama-3.1-8B-Instruct": {
+      "total": 2,
+      "within_ci": 0
+    },
+    "Qwen2.5-3B-Instruct vs Mistral-7B-Instruct-v0.3": {
+      "total": 2,
+      "within_ci": 2
+    },
+    "Qwen2.5-7B-Instruct vs gemma-3-12b-it": {
+      "total": 2,
+      "within_ci": 1
+    },
+    "Phi-4-mini-instruct vs Mistral-7B-Instruct-v0.3": {
+      "total": 1,
+      "within_ci": 1
+    },
+    "Qwen2.5-3B-Instruct vs Qwen2.5-7B-Instruct": {
+      "total": 1,
+      "within_ci": 1
+    }
+  }
+}

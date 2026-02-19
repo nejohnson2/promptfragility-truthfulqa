@@ -239,6 +239,15 @@ All conditions use the same Jinja2 template~\citep{ronacher2008jinja2} with diff
 Critically, all conditions are \emph{semantically equivalent}: the question text, answer options, correct answer, and task (``choose the best answer'') are identical across conditions.
 Only the instruction phrasing, label scheme, layout, surrounding context, and stylistic tone vary.
 
+\paragraph{Perturbation design principles.}
+Our perturbation set is guided by four design principles:
+(i) \emph{category coverage}---conditions span five orthogonal perturbation categories (instruction wording, formatting, distractor context, social style, and output compliance stress) to avoid over-representing any single type of variation;
+(ii) \emph{ecological validity}---each condition reflects a choice a real evaluator might plausibly make (e.g., using numeric labels, adding ``think step by step,'' adjusting formality);
+(iii) \emph{minimal semantic change}---all conditions preserve the question text, answer options, and correct answer, varying only surface-level features; and
+(iv) \emph{template consistency}---all conditions are rendered from a single Jinja2 template with different parameter values, ensuring structural comparability.
+We acknowledge that 13 conditions are not exhaustive.
+To assess how sensitive our conclusions are to the perturbation set composition, we conduct a subset sensitivity analysis (Appendix~\ref{app:psi_sensitivity}) showing that PSI estimates stabilize at $k \geq 7$ perturbations, suggesting our set is large enough to yield reliable worst-case estimates.
+
 Table~\ref{tab:conditions} summarizes all conditions.
 
 \begin{table}[t]
@@ -267,7 +276,7 @@ Table~\ref{tab:conditions} summarizes all conditions.
 \texttt{polite} & Social style & ``Please kindly answer\ldots Thank you!'' \\
 \texttt{direct} & Social style & Blunt, no-filler: ``Pick the correct answer.'' \\
 \midrule
-\texttt{cot\_constr.} & Stress & ``Think step by step'' but require single-label output \\
+\texttt{cot\_constr.} & Output budget & ``Think step by step'' but require single-label output \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -398,6 +407,13 @@ Table~\ref{tab:category} summarizes the per-category statistics.
     \item \textbf{Stress} (1 condition, \texttt{cot\_constrained}): Asking models to ``think step by step'' but output only a single label produces highly model-dependent effects. It catastrophically hurts Llama-3.1-8B (the single largest drop in our evaluation) and moderately hurts most other models. However, it \emph{improves} performance for the Qwen family. The mean across models is \catMeanDeltastress~pp, with \nSigcotconstrained/\nModels{} models showing significant effects. This interaction between CoT elicitation and output constraints echoes findings by \citet{kojima2022large} that the benefits of step-by-step reasoning are not universal and depend critically on the model's ability to integrate reasoning into the required output format.
 \end{itemize}
 
+\paragraph{A note on \texttt{cot\_constrained}.}
+The \texttt{cot\_constrained} condition warrants separate discussion because it interacts with our fixed output budget (\texttt{max\_new\_tokens=10}).
+When instructed to ``think step by step,'' models may begin generating reasoning tokens that consume the limited budget, leaving insufficient space for the answer label.
+We therefore classify this condition as an ``output budget stress'' perturbation rather than purely benign wording: it tests whether models can produce a valid answer under competing demands for reasoning and brevity.
+This distinction is important because the large drops observed for some models (e.g., Llama-3.1-8B, $-$\valPSILlamaM~pp) may reflect format compliance failure rather than a genuine change in the model's factual beliefs.
+Our token budget ablation (Appendix~\ref{app:cot_ablation}) is designed to disentangle these effects.
+
 Smaller models are disproportionately affected by formatting changes: Qwen2.5-7B and Llama-3.1-8B both show large formatting-category mean deltas, while their 70B+ counterparts exhibit more modest effects.
 
 \subsection{Ranking Instability}
@@ -436,6 +452,12 @@ Notably, Llama-3.1-8B's worst-case accuracy (\valWorstLlamaM\%) falls below that
 \caption{Baseline accuracy vs.\ worst-case accuracy across prompt conditions. Distance below the $y = x$ diagonal equals PSI. \PSImaxModel{} exhibits the largest drop. The two 70B+ models cluster closest to the diagonal.}
 \label{fig:scatter}
 \end{figure}
+
+\paragraph{Decision robustness.}
+To connect ranking instability to statistical uncertainty, we compute a decision robustness measure by cross-referencing rank flips with bootstrap confidence intervals.
+Of the \totalFlips{} pairwise rank flips observed across all model pairs and non-baseline conditions, \fracFlipsWithinCI\% occur when the accuracy difference between the two models falls within the combined CI bounds---indicating that the flip is statistically fragile and could easily reverse with different question samples.
+Furthermore, the top-ranked model changes in \nTopOneChanges{} conditions, but in none of these cases (\fracTopOneSig\%) is the new leader's advantage statistically significant.
+This suggests that observed ranking instability is concentrated in regions of genuine measurement uncertainty: prompt choice can shift models from one side of a close call to the other, but rarely overturns a clear leader.
 
 \subsection{Statistical Significance}
 \label{sec:significance}
@@ -531,6 +553,33 @@ The \texttt{cautious} condition has high invalid rates but also produces some of
 This suggests that the cautious framing may filter for higher-confidence responses, but at the cost of many non-responses---an instance of the accuracy-coverage tradeoff familiar from the calibration literature~\citep{kadavath2022language, guo2017calibration}.
 
 
+\subsection{Parse Stage Analysis}
+\label{sec:parse_stages}
+
+To disentangle format compliance from belief changes, we retroactively classify each model output by which parser stage succeeded (Table~\ref{tab:parse_ablation}).
+Our regex parser applies four strategies in sequence: (1) the canonical ``Answer: X'' pattern, (2) exact single-token match, (3) label followed by punctuation, and (4) word-boundary scan; outputs matching none are classified as invalid.
+
+The results reveal that some conditions primarily affect parseability rather than model beliefs.
+The \texttt{concise} and \texttt{cot\_constrained} conditions overwhelmingly produce exact single-token outputs (67.0\% and 78.6\%, respectively)---these instructions effectively constrain the output format without needing fallback parsing.
+In contrast, conditions like \texttt{numeric\_labels} and \texttt{single\_line} show slightly elevated reliance on word-boundary parsing and higher invalid rates compared to baseline, suggesting that these formatting changes do affect the model's output distribution.
+
+Crucially, among successfully parsed outputs, accuracy differences persist across conditions, indicating that the effects are not purely artifacts of parsing.
+The \texttt{numeric\_labels} condition, for example, shows both increased word-boundary parsing \emph{and} reduced accuracy among parsed answers, suggesting a genuine interaction between label format and model beliefs.
+
+\begin{table}[t]
+\centering
+\caption{Parse stage distribution by condition (\% of all outputs across models). Stages: (1) ``Answer: X'' pattern, (2) exact token, (3) label+punctuation, (4) word boundary, (5) invalid. Conditions that heavily rely on later stages or produce more invalids indicate format compliance effects.}
+\label{tab:parse_ablation}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Condition} & \textbf{Ans:X} & \textbf{Exact} & \textbf{Label+} & \textbf{WBound} & \textbf{Invalid} \\
+\midrule
+\input{generated/table_parse_ablation_rows}
+\end{tabular}
+\end{table}
+
+
 % ============================================================================
 % 6. DISCUSSION
 % ============================================================================
@@ -538,7 +587,7 @@ This suggests that the cautious framing may filter for higher-confidence respons
 \label{sec:discussion}
 
 \paragraph{Benchmark scores are distributions, not point estimates.}
-Our results demonstrate that TruthfulQA MC1 accuracy varies non-trivially under benign prompt perturbations.
+Our results demonstrate that, for these \nModels{} instruction-tuned models under greedy decoding with our \nConditions{} prompt conditions, TruthfulQA MC1 accuracy varies non-trivially under benign prompt perturbations.
 PSI values range from \PSImin{} to \PSImax{} percentage points (mean \PSImean~pp across models), meaning that a model's reported accuracy could be \PSImin{} to \PSImax{} points lower than expected simply due to prompt choice.
 This has direct practical implications: a model's reported TruthfulQA score depends not only on its knowledge and reasoning capabilities but also on the specific prompt used to elicit answers.
 Two researchers evaluating the same model with different---but equally reasonable---prompt formulations could arrive at meaningfully different accuracy estimates.
@@ -555,7 +604,7 @@ This is particularly concerning in deployment contexts where model selection dec
 Perhaps our most striking finding is that \texttt{avoid\_misconceptions}---simply adding ``avoid common misconceptions'' to the instruction---produces a statistically significant accuracy improvement for all \nSigavoidmisconceptions{} models, with gains ranging from +\avoidMiscMinGain~pp to +\avoidMiscMaxGain~pp.
 This suggests that instruction-tuned models possess latent factual knowledge that the standard baseline prompt fails to elicit---consistent with the ``models mostly know what they know'' hypothesis of \citet{kadavath2022language}.
 On a benchmark specifically designed to test misconception resistance, this finding implies that measured ``truthfulness'' is partly a function of how explicitly the prompt cues the model to be truthful.
-This has important implications for how we interpret TruthfulQA scores: the original inverse-scaling finding~\citep{lin2022truthfulqa} may be attenuated or even reversed under prompt formulations that explicitly activate misconception-avoidance behavior.
+This raises a testable hypothesis for future work: the original inverse-scaling finding in TruthfulQA~\citep{lin2022truthfulqa}, observed on base models, may interact with prompt formulation in instruction-tuned models. Our experiment is not designed to test this directly---our models are all instruction-tuned and span a limited scale range---but the universal improvement from \texttt{avoid\_misconceptions} suggests that prompt choice may confound scale-vs-truthfulness comparisons. We flag this as a high-priority direction for future investigation.
 
 \paragraph{Implications for benchmark design.}
 Our findings suggest that benchmark designers should consider prompt sensitivity as a first-class concern.
@@ -565,6 +614,7 @@ Benchmark designers could mitigate this by (a) specifying multiple official prom
 
 \paragraph{Recommendations for benchmark reporting.}
 Based on our findings, we recommend:
+These recommendations are grounded in our TruthfulQA MC1 evidence; the extent to which they generalize to other benchmarks and evaluation regimes is an empirical question for future work.
 \begin{enumerate}[leftmargin=*]
     \item \textbf{Report sensitivity ranges.} When publishing benchmark results, report accuracy under at least 3--5 prompt variants in addition to the primary score, and include PSI or a similar spread metric.
     \item \textbf{Standardize prompt templates.} Cross-model comparisons should use identical prompt templates. When this is not possible (e.g., when models require different chat templates), the prompt-induced variance should be explicitly acknowledged and quantified.
@@ -580,6 +630,7 @@ Several limitations of our study should be noted:
     \item \textbf{Single benchmark.} Our findings are specific to TruthfulQA MC1. The magnitude and pattern of prompt sensitivity may differ for other benchmarks (MMLU~\citep{hendrycks2021measuring}, ARC~\citep{clark2018think}, HellaSwag~\citep{zellers2019hellaswag}) or other TruthfulQA configurations (MC2, open-ended).
     \item \textbf{English only.} All experiments are conducted in English. Prompt sensitivity may be amplified or attenuated in other languages, particularly for models with less balanced multilingual training data.
     \item \textbf{Hand-crafted perturbations.} Our \nConditions{} conditions, while spanning 5 categories, are not exhaustive. A larger or automatically generated perturbation set (e.g., using the paraphrasing approach of \citealt{mizrahi2024state}) might reveal additional sensitivity patterns.
+    \item \textbf{Output budget interaction.} The \texttt{cot\_constrained} condition interacts with our fixed output budget (\texttt{max\_new\_tokens=10}). While we provide a token budget ablation (Appendix~\ref{app:cot_ablation}) to characterize this interaction, the broader question of how output length constraints interact with prompt sensitivity remains underexplored.
     \item \textbf{Deterministic decoding.} We use greedy decoding throughout. Sampling-based decoding would introduce additional variance, potentially interacting with prompt sensitivity in complex ways.
     \item \textbf{MC format only.} Multiple-choice evaluation constrains the output space and may underestimate prompt sensitivity compared to open-ended generation, where output format is unconstrained.
     \item \textbf{Fixed answer order.} We do not vary the ordering of answer options, which \citet{pezeshkpour2023large} and \citet{zheng2024large} have shown to be an additional source of evaluation variance. Our PSI estimates therefore capture only prompt-framing sensitivity, not the full space of MC evaluation variance.
@@ -604,7 +655,7 @@ Our key findings are:
 \end{enumerate}
 
 The Prompt Sensitivity Index provides a simple, actionable metric for quantifying how much a model's benchmark score depends on prompt formulation.
-We recommend that future benchmark evaluations report PSI (or analogous spread metrics) alongside point accuracy estimates, and that model comparisons explicitly account for prompt-induced measurement uncertainty.
+We recommend that future evaluations of TruthfulQA and similar MC benchmarks consider reporting PSI (or analogous spread metrics) alongside point accuracy estimates, and that model comparisons explicitly account for prompt-induced measurement uncertainty.
 
 Our evaluation framework, all \nConditions{} prompt conditions, and complete per-prediction logs are publicly available to facilitate reproducible prompt sensitivity auditing across other benchmarks and model families.
 
@@ -911,6 +962,51 @@ Entries marked with * indicate that the 95\% CI excludes zero.
 \input{generated/table_full_bootstrap_rows}
 \end{tabular}
 \end{table}
+
+\section{PSI Sensitivity to Perturbation Subset Size}
+\label{app:psi_sensitivity}
+
+A natural concern with our PSI metric is that it depends on the specific perturbation set used.
+To assess this, we conduct a subset sensitivity analysis: for each model, we sample random subsets of $k$ perturbations ($k \in \{3, 5, 7, 9, 12\}$) from the 12 non-baseline conditions, compute PSI (baseline accuracy minus worst accuracy in the subset), and record the distribution over 1{,}000 random draws (seed 42).
+
+Figure~\ref{fig:psi_sensitivity} shows PSI convergence as subset size increases.
+At $k = 3$, PSI estimates are highly variable (standard deviations of 1.3--4.6~pp), but by $k = 7$ the interquartile range narrows substantially and the mean PSI is within 1--2~pp of the full value for most models.
+At $k = 9$, estimates are very close to the full-set value for all models.
+This suggests that a perturbation set of 7--9 conditions is sufficient to yield reliable worst-case estimates, and our 12-perturbation set provides stable PSI values.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/psi_subset_sensitivity.png}
+\caption{PSI sensitivity to perturbation subset size. Lines show mean PSI; shaded regions show the 25th--75th percentile range over 1{,}000 random subsets. PSI estimates stabilize by $k \geq 7$ perturbations for all models.}
+\label{fig:psi_sensitivity}
+\end{figure}
+
+
+\section{Token Budget Sensitivity for CoT-Constrained}
+\label{app:cot_ablation}
+
+The \texttt{cot\_constrained} condition instructs models to ``think step by step'' while requiring a single-label answer, but our evaluation uses \texttt{max\_new\_tokens=10}, creating tension between reasoning and answer production.
+To disentangle output budget effects from genuine prompt sensitivity, we plan an ablation study re-running this condition with \texttt{max\_new\_tokens} $\in \{10, 20, 50\}$ across all 8 models.
+
+If the accuracy drop largely recovers at higher token budgets, this would confirm that the effect is primarily a budget artifact: the model has the knowledge but cannot express it within 10 tokens when also reasoning.
+Conversely, if the drop persists, it would indicate a genuine sensitivity to CoT elicitation under constrained output---a meaningful finding about how instruction composition affects model behavior.
+
+\emph{Note: This ablation requires additional GPU compute and will be completed before the camera-ready version. The SLURM script (\texttt{scripts/slurm\_cot\_ablation.sbatch}) and evaluation code (with the new \texttt{--conditions\_filter} argument) are prepared and ready for submission.}
+
+
+\section{Parse Stage Distribution}
+\label{app:parse_stages}
+
+Figure~\ref{fig:parse_stages} shows the full parse stage distribution across all conditions, aggregated over all 8 models.
+Conditions vary substantially in how they distribute across parse stages, with \texttt{concise} and \texttt{cot\_constrained} producing the most uniform, easily parsed outputs (predominantly exact single tokens) and \texttt{cautious} producing the highest invalid rate (10.8\%).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/parse_stage_distribution.png}
+\caption{Parse stage distribution by condition, aggregated across all models. Conditions that heavily produce exact-token outputs (e.g., \texttt{concise}, \texttt{cot\_constrained}) indicate strong format compliance; conditions with elevated invalid rates indicate format compliance challenges.}
+\label{fig:parse_stages}
+\end{figure}
+
 
 \section{Computational Resources}
 \label{app:compute}

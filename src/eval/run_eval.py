@@ -97,8 +97,9 @@ def run_evaluation(
     output_dir: Path,
     quantize_4bit: bool = False,
     decoding: DecodingParams | None = None,
+    conditions_filter: list[str] | None = None,
 ) -> None:
-    """Run full evaluation for one model across all conditions."""
+    """Run full evaluation for one model across all (or filtered) conditions."""
     decoding = decoding or DecodingParams()
     run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
@@ -110,6 +111,15 @@ def run_evaluation(
     # Load data and conditions
     records = load_dataset(dataset_path, split)
     conditions = load_conditions(conditions_path)
+
+    # Apply conditions filter if specified
+    if conditions_filter:
+        conditions = [c for c in conditions if c["id"] in conditions_filter]
+        if not conditions:
+            raise ValueError(
+                f"No conditions matched filter: {conditions_filter}. "
+                f"Check condition IDs in {conditions_path}."
+            )
 
     total_inferences = len(records) * len(conditions)
 
@@ -236,6 +246,12 @@ def main() -> None:
     parser.add_argument("--quantize_4bit", action="store_true")
     parser.add_argument("--max_new_tokens", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--conditions_filter",
+        nargs="*",
+        default=None,
+        help="Run only these condition IDs (space-separated). Default: run all.",
+    )
     args = parser.parse_args()
 
     decoding = DecodingParams(
@@ -251,6 +267,7 @@ def main() -> None:
         output_dir=args.output_dir,
         quantize_4bit=args.quantize_4bit,
         decoding=decoding,
+        conditions_filter=args.conditions_filter,
     )
 
 

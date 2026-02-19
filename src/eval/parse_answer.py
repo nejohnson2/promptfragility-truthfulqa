@@ -85,3 +85,51 @@ def parse_mc_answer(
             return label_map[token], False
 
     return None, True
+
+
+def parse_mc_answer_staged(
+    output_text: str,
+    label_map: dict[str, str],
+) -> tuple[str | None, bool, str]:
+    """Parse with stage tracking — identical logic to parse_mc_answer.
+
+    Returns:
+        (parsed_canonical_label, is_invalid, stage)
+        stage is one of: "answer_pattern", "exact_token", "label_punctuation",
+                         "word_boundary", "invalid"
+    """
+    text = output_text.strip()
+    valid_displayed = set(label_map.keys())
+    has_alpha = any(c.isalpha() for c in valid_displayed)
+    label_class = _build_label_pattern(valid_displayed)
+
+    # Stage 1: "Answer: X"
+    m = re.search(rf"[Aa]nswer\s*:\s*({label_class})", text)
+    if m:
+        token = m.group(1).upper()
+        if token in valid_displayed:
+            return label_map[token], False, "answer_pattern"
+
+    # Stage 2a: exact single token
+    if text.upper() in valid_displayed:
+        return label_map[text.upper()], False, "exact_token"
+
+    # Stage 2b: label + punctuation at start
+    m = re.match(rf"^({label_class})[).:\s]", text)
+    if m:
+        token = m.group(1).upper()
+        if token in valid_displayed:
+            return label_map[token], False, "label_punctuation"
+
+    # Stage 3: word-boundary scan
+    if has_alpha:
+        pattern = rf"(?<![a-zA-Z])({label_class})(?![a-zA-Z])"
+    else:
+        pattern = rf"(?<!\d)({label_class})(?!\d)"
+
+    for m in re.finditer(pattern, text):
+        token = m.group(1).upper()
+        if token in valid_displayed:
+            return label_map[token], False, "word_boundary"
+
+    return None, True, "invalid"

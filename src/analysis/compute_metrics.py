@@ -47,15 +47,23 @@ def compute_model_summary(accuracy_table: pd.DataFrame) -> pd.DataFrame:
         baseline_row = grp[grp["condition_id"] == "baseline"]
         baseline_acc = baseline_row["accuracy"].values[0] if len(baseline_row) > 0 else np.nan
 
+        # IQR and MAD — auxiliary robustness metrics less sensitive to outliers
+        q75, q25 = np.percentile(accs, [75, 25])
+        median_acc = np.median(accs)
+        mad = np.median(np.abs(accs - median_acc))
+
         rows.append({
             "model_id": model_id,
             "baseline_acc": baseline_acc,
             "mean_acc": accs.mean(),
+            "median_acc": median_acc,
             "worst_acc": accs.min(),
             "best_acc": accs.max(),
             "std_acc": accs.std(),
             "range_acc": accs.max() - accs.min(),
             "PSI_drop": baseline_acc - accs.min(),
+            "PSI_iqr": q75 - q25,
+            "PSI_mad": mad,
             "mean_invalid_rate": grp["invalid_rate"].mean(),
         })
     return pd.DataFrame(rows)
