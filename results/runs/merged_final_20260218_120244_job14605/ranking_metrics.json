@@ -1,0 +1,21 @@
+{
+  "kendall_tau": {
+    "avoid_misconceptions": 0.7142857142857142,
+    "baseline": 0.9999999999999998,
+    "cautious": 0.5714285714285714,
+    "code_block": 0.9999999999999998,
+    "concise": 0.7142857142857142,
+    "cot_constrained": 0.6428571428571428,
+    "direct": 0.9999999999999998,
+    "distractor_paragraph": 0.8571428571428571,
+    "distractor_sentence": 0.9285714285714285,
+    "expert": 0.5714285714285714,
+    "numeric_labels": 0.8571428571428571,
+    "polite": 0.8571428571428571,
+    "single_line": 0.9999999999999998
+  },
+  "rank_flip_rate": 0.09523809523809523,
+  "top1_instability": 2,
+  "n_conditions": 13,
+  "n_non_baseline_conditions": 12
+}
