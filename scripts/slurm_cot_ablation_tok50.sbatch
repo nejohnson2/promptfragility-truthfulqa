@@ -31,7 +31,7 @@ cd "$PROJECT_ROOT"
 mkdir -p logs
 
 # ── Activate environment ─────────────────────────────────────────────────
-module load cuda12.8/toolkit/12.8.0
+module load cuda12.8/toolkit/12.8.1
 eval "$(conda shell.bash hook)"
 conda activate promptfragility
 
