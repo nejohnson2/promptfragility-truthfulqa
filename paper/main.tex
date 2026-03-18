@@ -411,8 +411,8 @@ Table~\ref{tab:category} summarizes the per-category statistics.
 The \texttt{cot\_constrained} condition warrants separate discussion because it interacts with our fixed output budget (\texttt{max\_new\_tokens=10}).
 When instructed to ``think step by step,'' models may begin generating reasoning tokens that consume the limited budget, leaving insufficient space for the answer label.
 We therefore classify this condition as an ``output budget stress'' perturbation rather than purely benign wording: it tests whether models can produce a valid answer under competing demands for reasoning and brevity.
-This distinction is important because the large drops observed for some models (e.g., Llama-3.1-8B, $-$\valPSILlamaM~pp) may reflect format compliance failure rather than a genuine change in the model's factual beliefs.
-Our token budget ablation (Appendix~\ref{app:cot_ablation}) is designed to disentangle these effects.
+This distinction is important because the large drops observed for some models (e.g., Llama-3.1-8B, $-$\valPSILlamaM~pp) could in principle reflect format compliance failure rather than a genuine change in the model's factual beliefs.
+Our token budget ablation (Appendix~\ref{app:cot_ablation}) confirms that the drops largely persist at higher token budgets, indicating genuine sensitivity rather than budget artifacts.
 
 Smaller models are disproportionately affected by formatting changes: Qwen2.5-7B and Llama-3.1-8B both show large formatting-category mean deltas, while their 70B+ counterparts exhibit more modest effects.
 
@@ -524,7 +524,7 @@ This finding implies that \emph{how} a model is trained matters at least as much
 
 Llama-3.1-8B is by far the most fragile, with PSI = \valPSILlamaM~pp, driven primarily by its catastrophic sensitivity to \texttt{cot\_constrained} and \texttt{concise}.
 These two conditions together drag its mean accuracy below all other models at this scale.
-The severity of the CoT-constrained degradation suggests a fundamental tension in Llama-3.1-8B between reasoning elicitation and output constraint---the model may begin generating reasoning tokens that consume the limited output budget (\texttt{max\_new\_tokens=10}), leaving insufficient space for the answer label.
+The severity of the CoT-constrained degradation reflects a genuine sensitivity to CoT elicitation rather than a token budget artifact: our ablation study (Appendix~\ref{app:cot_ablation}) shows that increasing \texttt{max\_new\_tokens} from 10 to 50 recovers only 2.3~pp of the 14.3~pp drop, confirming a fundamental tension in Llama-3.1-8B between reasoning elicitation and answer production.
 
 Qwen2.5-7B and Mistral-7B occupy intermediate positions.
 Qwen2.5-7B has a higher PSI (\valPSIQwenM~pp) than Mistral-7B (\valPSIMistral~pp), but both produce numerous significant condition effects.
@@ -630,7 +630,7 @@ Several limitations of our study should be noted:
     \item \textbf{Single benchmark.} Our findings are specific to TruthfulQA MC1. The magnitude and pattern of prompt sensitivity may differ for other benchmarks (MMLU~\citep{hendrycks2021measuring}, ARC~\citep{clark2018think}, HellaSwag~\citep{zellers2019hellaswag}) or other TruthfulQA configurations (MC2, open-ended).
     \item \textbf{English only.} All experiments are conducted in English. Prompt sensitivity may be amplified or attenuated in other languages, particularly for models with less balanced multilingual training data.
     \item \textbf{Hand-crafted perturbations.} Our \nConditions{} conditions, while spanning 5 categories, are not exhaustive. A larger or automatically generated perturbation set (e.g., using the paraphrasing approach of \citealt{mizrahi2024state}) might reveal additional sensitivity patterns.
-    \item \textbf{Output budget interaction.} The \texttt{cot\_constrained} condition interacts with our fixed output budget (\texttt{max\_new\_tokens=10}). While we provide a token budget ablation (Appendix~\ref{app:cot_ablation}) to characterize this interaction, the broader question of how output length constraints interact with prompt sensitivity remains underexplored.
+    \item \textbf{Output budget interaction.} The \texttt{cot\_constrained} condition interacts with our fixed output budget (\texttt{max\_new\_tokens=10}). Our token budget ablation (Appendix~\ref{app:cot_ablation}) confirms that the observed effects are largely genuine rather than budget artifacts, but the broader question of how output length constraints interact with prompt sensitivity across other conditions remains underexplored.
     \item \textbf{Deterministic decoding.} We use greedy decoding throughout. Sampling-based decoding would introduce additional variance, potentially interacting with prompt sensitivity in complex ways.
     \item \textbf{MC format only.} Multiple-choice evaluation constrains the output space and may underestimate prompt sensitivity compared to open-ended generation, where output format is unconstrained.
     \item \textbf{Fixed answer order.} We do not vary the ordering of answer options, which \citet{pezeshkpour2023large} and \citet{zheng2024large} have shown to be an additional source of evaluation variance. Our PSI estimates therefore capture only prompt-framing sensitivity, not the full space of MC evaluation variance.
@@ -985,13 +985,41 @@ This suggests that a perturbation set of 7--9 conditions is sufficient to yield 
 \section{Token Budget Sensitivity for CoT-Constrained}
 \label{app:cot_ablation}
 
-The \texttt{cot\_constrained} condition instructs models to ``think step by step'' while requiring a single-label answer, but our evaluation uses \texttt{max\_new\_tokens=10}, creating tension between reasoning and answer production.
-To disentangle output budget effects from genuine prompt sensitivity, we plan an ablation study re-running this condition with \texttt{max\_new\_tokens} $\in \{10, 20, 50\}$ across all 8 models.
+The \texttt{cot\_constrained} condition instructs models to ``think step by step'' while requiring a single-label answer, but our main evaluation uses \texttt{max\_new\_tokens=10}, creating tension between reasoning and answer production.
+To disentangle output budget effects from genuine prompt sensitivity, we re-run the \texttt{cot\_constrained} and \texttt{baseline} conditions with \texttt{max\_new\_tokens} $\in \{10, 20, 50\}$ across all 8 models on the final split ($n = \nQuestions$).
 
-If the accuracy drop largely recovers at higher token budgets, this would confirm that the effect is primarily a budget artifact: the model has the knowledge but cannot express it within 10 tokens when also reasoning.
-Conversely, if the drop persists, it would indicate a genuine sensitivity to CoT elicitation under constrained output---a meaningful finding about how instruction composition affects model behavior.
+Table~\ref{tab:cot_ablation} reports the accuracy delta (CoT $-$ baseline) at each token budget.
+The results reveal three distinct response patterns:
 
-\emph{Note: This ablation requires additional GPU compute and will be completed before the camera-ready version. The SLURM script (\texttt{scripts/slurm\_cot\_ablation.sbatch}) and evaluation code (with the new \texttt{--conditions\_filter} argument) are prepared and ready for submission.}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Persistent drops.} Llama-3.1-8B's accuracy delta moves from $-14.3$~pp (tok10) to $-12.0$~pp (tok50), recovering only 2.3~pp---confirming that the drop is predominantly a genuine sensitivity to CoT elicitation, not a budget artifact. Llama-3.1-70B ($-3.5 \to -3.3$~pp), Gemma-3-12B ($-3.4 \to -2.6$~pp), Mistral-7B ($-4.3 \to -4.5$~pp), and Phi-4-mini ($-2.6 \to -2.6$~pp) similarly show little or no recovery, indicating that their CoT drops reflect belief-level effects rather than output truncation.
+    \item \textbf{Diminishing benefits.} The Qwen family shows a striking reversal: CoT \emph{helps} at tok10 (Qwen-7B: $+6.1$~pp, Qwen-72B: $+3.0$~pp) but the benefit progressively shrinks at tok20 and tok50 (Qwen-7B: $+2.2$~pp, Qwen-72B: $+1.1$~pp). Qwen-3B flips from $+0.3$~pp to $-3.5$~pp. With more output budget, these models appear to ``overthink''---generating reasoning that leads them away from initially correct answers.
+    \item \textbf{Flat responses.} Mistral-7B and Phi-4-mini show virtually identical deltas across all three budgets, confirming that their CoT effects are entirely instruction-driven and independent of output length constraints.
+\end{itemize}
+
+These findings demonstrate that the \texttt{cot\_constrained} effects in our main evaluation are not primarily budget artifacts.
+The interaction between CoT elicitation and output constraints is model-specific: some models are harmed regardless of budget, others benefit only under tight constraints, and none fully recovers at 50 tokens.
+
+\begin{table}[h]
+\centering
+\caption{CoT token budget ablation: accuracy delta (\texttt{cot\_constrained} $-$ \texttt{baseline}, in pp) at three output budgets. Negative values indicate CoT hurts; positive values indicate CoT helps. All runs use the final split ($n = \nQuestions$) with deterministic decoding.}
+\label{tab:cot_ablation}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Model} & \textbf{tok10} & \textbf{tok20} & \textbf{tok50} \\
+\midrule
+Qwen2.5-3B    & $+0.3$  & $-2.3$  & $-3.5$  \\
+Qwen2.5-7B    & $+6.1$  & $+4.1$  & $+2.2$  \\
+Qwen2.5-72B   & $+3.0$  & $+1.9$  & $+1.1$  \\
+Llama-3.1-8B  & $-14.3$ & $-13.3$ & $-12.0$ \\
+Llama-3.1-70B & $-3.5$  & $-3.3$  & $-3.3$  \\
+Mistral-7B    & $-4.3$  & $-4.3$  & $-4.5$  \\
+Gemma-3-12B   & $-3.4$  & $-2.7$  & $-2.6$  \\
+Phi-4-mini    & $-2.6$  & $-2.6$  & $-2.6$  \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 
 \section{Parse Stage Distribution}

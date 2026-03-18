@@ -1,0 +1,17 @@
+model_id,condition_id,accuracy,invalid_rate,n
+Qwen/Qwen2.5-3B-Instruct,baseline,0.5407608695652174,0.004076086956521739,736
+Qwen/Qwen2.5-3B-Instruct,cot_constrained,0.5054347826086957,0.0,736
+Qwen/Qwen2.5-72B-Instruct,baseline,0.8097826086956522,0.01358695652173913,736
+Qwen/Qwen2.5-72B-Instruct,cot_constrained,0.8206521739130435,0.0,736
+Qwen/Qwen2.5-7B-Instruct,baseline,0.625,0.021739130434782608,736
+Qwen/Qwen2.5-7B-Instruct,cot_constrained,0.6467391304347826,0.0,736
+google/gemma-3-12b-it,baseline,0.6413043478260869,0.001358695652173913,736
+google/gemma-3-12b-it,cot_constrained,0.6154891304347826,0.0,736
+meta-llama/Llama-3.1-70B-Instruct,baseline,0.7635869565217391,0.008152173913043478,736
+meta-llama/Llama-3.1-70B-Instruct,cot_constrained,0.7309782608695652,0.005434782608695652,736
+meta-llama/Llama-3.1-8B-Instruct,baseline,0.5855978260869565,0.02309782608695652,736
+meta-llama/Llama-3.1-8B-Instruct,cot_constrained,0.46603260869565216,0.025815217391304348,736
+microsoft/Phi-4-mini-instruct,baseline,0.49728260869565216,0.0,736
+microsoft/Phi-4-mini-instruct,cot_constrained,0.47146739130434784,0.0,736
+mistralai/Mistral-7B-Instruct-v0.3,baseline,0.5380434782608695,0.0,736
+mistralai/Mistral-7B-Instruct-v0.3,cot_constrained,0.49320652173913043,0.0,736

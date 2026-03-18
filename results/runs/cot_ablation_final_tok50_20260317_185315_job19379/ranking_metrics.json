@@ -1,0 +1,10 @@
+{
+  "kendall_tau": {
+    "baseline": 0.9999999999999998,
+    "cot_constrained": 0.7142857142857142
+  },
+  "rank_flip_rate": 0.14285714285714285,
+  "top1_instability": 0,
+  "n_conditions": 2,
+  "n_non_baseline_conditions": 1
+}
